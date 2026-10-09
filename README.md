@@ -36,6 +36,19 @@ dans le navigateur (`localStorage`) pour pouvoir être reprise.
 Seuls ces mots **exacts** sont pris en compte (une phrase qui les contient ne déclenche rien) et une commande
 répétée aussitôt est ignorée. Le texte entendu est affiché à l'écran.
 
+## Identité visuelle
+
+Le style reprend le logo de la Fromagerie des Frisonnes : trait noir fin, vert du trèfle (`#48a858`, assombri en
+`#2d7a3b` pour que le texte blanc des boutons reste très lisible), papier crème, jaune « fromage » pour le total et la
+pause, titres en serif comme le lettrage du logo (aucune police à télécharger).
+
+- Les dessins de la ferme, des vaches et des fromages sont des SVG dans `components/brand/Illustrations.tsx`.
+  Ils ne sont pas sur l'écran de préparation, qui reste sobre.
+- Le logo (`components/brand/logo*.webp`) et les icônes de l'application (`public/icons/`, `app/favicon.ico`) viennent de la
+  capture fournie. Avec un fichier de meilleure qualité, il suffit de remplacer le logo et de régénérer les icônes.
+- Les couleurs sont dans `app/globals.css` (clair et sombre). `tests/contrast.test.ts` vérifie qu'elles gardent un fort
+  contraste : à relancer après toute retouche de la palette.
+
 ## Limites
 
 - **La reconnaissance vocale est moins fiable dans un endroit bruyant**, et sur **iPhone** elle est souvent
@@ -65,7 +78,7 @@ navigateur, indiquer celui à utiliser : `CHROMIUM_PATH=/chemin/vers/chrome npm 
 | --- | --- |
 | `lib/` | Toute la logique, sans interface : lecture du fichier, règles d'exclusion, valeurs douteuses, étapes, texte parlé, commandes vocales, sauvegarde, écoute et parole |
 | `lib/import/` | Les **importeurs** (fichier Excel/CSV). Tous produisent un `RawGrid` : le reste de l'appli n'en dépend pas |
-| `app/`, `components/`, `hooks/` | Les écrans (une adresse par écran) et la voix côté interface |
+| `app/`, `components/`, `hooks/` | Les écrans (une adresse par écran) et la voix côté interface ; `components/brand/` : logo et dessins |
 | `tests/` | Tests unitaires (dont `exemple.test.ts`, qui lit `exemple/Classeur1.xlsx`) |
 | `e2e/` | Tests Playwright (390 px, voix simulée, hors connexion) |
 | `vendor/` | SheetJS 0.20.3 (la version publiée sur npm est ancienne et vulnérable) |
