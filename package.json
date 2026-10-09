@@ -10,7 +10,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "next": "16.4.0",
@@ -19,6 +20,7 @@
     "xlsx": "file:vendor/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22",
     "@types/react": "^19",
