@@ -33,8 +33,9 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
         if (event.target === ref.current) onClose();
       }}
     >
-      <div className="rounded-t-3xl border-t-2 border-line bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-3xl sm:border-2">
-        <div className="mb-3 flex items-start gap-2">
+      {/* Hauteur bornée à celle de l'écran (donc aussi quand le clavier en prend la moitié) : seul le contenu défile, le titre et le bouton Fermer restent visibles. */}
+      <div className="flex max-h-[88dvh] min-h-0 flex-col rounded-t-3xl border-t-2 border-line bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-3xl sm:border-2">
+        <div className="mb-3 flex shrink-0 items-start gap-2">
           <h2 id={titleId} className="min-w-0 flex-1 pt-2 font-serif text-xl font-bold leading-snug">
             {title}
           </h2>
@@ -42,7 +43,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
             <CloseIcon />
           </Button>
         </div>
-        <div className="max-h-[68dvh] overflow-y-auto overscroll-contain">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
       </div>
     </dialog>
   );

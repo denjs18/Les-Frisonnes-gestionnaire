@@ -49,9 +49,14 @@ export function CellEditor({ r, c, onClose, onJump }: Props) {
           </Button>
           <input
             inputMode="numeric"
+            enterKeyHint="done"
             pattern="[0-9]*"
             autoComplete="off"
             aria-label="Quantité"
+            // La touche « OK » du clavier (Android, iPhone) range le clavier au lieu de rester sans effet.
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+            }}
             value={typeof value === "number" ? String(value) : ""}
             placeholder={typeof value === "string" ? value : "0"}
             onChange={(event) => {

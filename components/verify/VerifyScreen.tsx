@@ -115,12 +115,26 @@ export function VerifyScreen() {
               {blocked}
             </p>
           )}
-          <Button variant="ok" size="xl" className="w-full" disabled={!canStart} onClick={() => begin("start")}>
-            Tout est correct, commencer
-          </Button>
-          {session.status === "preparing" && canStart && (
-            <Button variant="secondary" size="lg" className="w-full" onClick={() => begin("resume")}>
-              Reprendre la préparation en cours
+          {session.status === "preparing" && canStart ? (
+            // Le bouton Retour d'Android (ou un geste de retour) ramène ici en pleine préparation : reprendre doit être le choix évident.
+            <>
+              <Button variant="ok" size="xl" className="w-full" onClick={() => begin("resume")}>
+                Reprendre la préparation en cours
+              </Button>
+              <Button
+                variant="secondary"
+                size="lg"
+                className="w-full"
+                onClick={() => {
+                  if (window.confirm("Recommencer au premier produit ? Votre avancement actuel sera perdu.")) begin("start");
+                }}
+              >
+                Recommencer depuis le début
+              </Button>
+            </>
+          ) : (
+            <Button variant="ok" size="xl" className="w-full" disabled={!canStart} onClick={() => begin("start")}>
+              Tout est correct, commencer
             </Button>
           )}
         </div>
