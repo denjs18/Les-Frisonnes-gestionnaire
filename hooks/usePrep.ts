@@ -3,12 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useApp } from "@/components/AppProvider";
-import { stepSentence, whereSentence } from "@/lib/speech-text";
-import { findStepIndex, positionOf, type Plan, type Step } from "@/lib/steps";
+import { ambiguousSentence, GOTO_HELP_SENTENCE, stepSentence, whereSentence } from "@/lib/speech-text";
+import { findStepIndex, positionOf, type Plan, type Position, type Step } from "@/lib/steps";
 import {
   CommandGate,
   interpretCandidates,
-  resolveGoto,
+  resolveGotoDetailed,
   type GotoTarget,
   type VoiceCommand,
 } from "@/lib/voice-commands";
@@ -23,7 +23,11 @@ const COMMAND_LABELS: Record<VoiceCommand["type"], string> = {
   resume: "Reprendre",
   where: "Où j'en suis",
   goto: "Reprendre à…",
+  gotoHelp: "Aide",
 };
+
+/** Les fenêtres de l'écran de préparation : choisir un endroit, régler la sensibilité du micro. */
+export type PrepSheet = "goto" | "sensitivity";
 
 /** Ce que l'appli a fait du dernier texte entendu (pour l'afficher à côté de ce texte). */
 export interface Decision {
@@ -52,12 +56,13 @@ export function usePrep() {
   const [paused, setPaused] = useState(false);
   const [repeatNonce, setRepeatNonce] = useState(0);
   const [decision, setDecision] = useState<Decision | null>(null);
+  const [sheet, setSheet] = useState<PrepSheet | null>(null);
   const snapshot = useSyncExternalStore(voice.subscribe, voice.getSnapshot, voice.getServerSnapshot);
 
   // Les callbacks de la voix ne sont créés qu'une fois : ils lisent ici les dernières valeurs.
-  const live = useRef({ steps, index, paused, settings, plan });
+  const live = useRef({ steps, index, paused, settings, plan, sheet });
   useEffect(() => {
-    live.current = { steps, index, paused, settings, plan };
+    live.current = { steps, index, paused, settings, plan, sheet };
   });
 
   // Cet écran n'a de sens que pour une préparation vérifiée et en cours.
@@ -114,21 +119,36 @@ export function usePrep() {
     const here = all[i];
     if (here) say(whereSentence(here, current.aliases));
   }, [say]);
-  const goto = useCallback(
-    (target: GotoTarget): boolean => {
-      const { plan: current, settings: s } = live.current;
-      const position = current ? resolveGoto(current, target, s.aliases) : null;
-      if (!position) {
-        say("Je n'ai pas trouvé.");
-        return false;
-      }
+  const closeSheet = useCallback(() => setSheet(null), []);
+
+  /** Va à une étape précise et la dicte (même si c'est déjà l'étape en cours). */
+  const jumpTo = useCallback(
+    (position: Position) => {
       setPaused(false);
       dispatch({ type: "setPosition", position });
       setRepeatNonce((n) => n + 1);
-      return true;
     },
-    [dispatch, say],
+    [dispatch],
   );
+  const goto = useCallback(
+    (target: GotoTarget): "found" | "ambiguous" | "missing" => {
+      const { plan: current, steps: all, index: i, settings: s } = live.current;
+      const here = all[i];
+      const result = current ? resolveGotoDetailed(current, target, s.aliases, here ? positionOf(here) : null) : null;
+      if (result?.kind === "found") {
+        jumpTo(result.position);
+        return "found";
+      }
+      if (result?.kind === "ambiguous") {
+        say(ambiguousSentence(result.noun, result.names, s.aliases));
+        return "ambiguous";
+      }
+      say("Je n'ai pas trouvé.");
+      return "missing";
+    },
+    [jumpTo, say],
+  );
+  const gotoHelp = useCallback(() => say(GOTO_HELP_SENTENCE), [say]);
 
   // Dicte l'étape à chaque changement d'étape, sur « Répéter » et à la reprise après une pause.
   useEffect(() => {
@@ -154,13 +174,20 @@ export function usePrep() {
     const gate = new CommandGate(1500);
     voice.setCandidatesHandler((candidates) => {
       const heard = candidates[0] ?? "";
-      const command = interpretCandidates(candidates);
+      // Sensibilité réduite : seuls les mots principaux comptent (pas « stop », « retour »… que le bruit déclenche trop facilement).
+      const command = interpretCandidates(candidates, { strict: live.current.settings.micSensitivity !== "normal" });
       if (!command) {
         setDecision({ heard, label: null });
         return;
       }
-      // En pause, l'appli n'obéit qu'à « reprends » (et « où j'en suis ») : pas d'avance accidentelle.
-      if (live.current.paused && command.type !== "resume" && command.type !== "where") {
+      // Une fenêtre est ouverte : on choisit à la main (ou on règle le micro), rien ne doit bouger derrière.
+      // Dans la fenêtre de réglage du micro, la commande est seulement reconnue (« essai »), pour juger de la sensibilité.
+      if (live.current.sheet !== null) {
+        setDecision({ heard, label: live.current.sheet === "sensitivity" ? `${COMMAND_LABELS[command.type]} (essai)` : null });
+        return;
+      }
+      // En pause, l'appli n'obéit qu'à « reprends » (et « où j'en suis », ou « reprends à… » qui reprend à un endroit précis) : pas d'avance accidentelle.
+      if (live.current.paused && command.type !== "resume" && command.type !== "where" && command.type !== "goto" && command.type !== "gotoHelp") {
         setDecision({ heard, label: null });
         return;
       }
@@ -190,14 +217,26 @@ export function usePrep() {
         case "where":
           where();
           break;
-        case "goto":
-          if (!goto(command.target)) label = "Introuvable";
+        case "goto": {
+          const outcome = goto(command.target);
+          if (outcome === "ambiguous") label = "À préciser";
+          else if (outcome === "missing") label = "Introuvable";
+          break;
+        }
+        case "gotoHelp":
+          gotoHelp();
           break;
       }
       setDecision({ heard, label });
     });
     return () => voice.setCandidatesHandler(null);
-  }, [ready, next, prev, repeat, pause, resume, where, goto]);
+  }, [ready, next, prev, repeat, pause, resume, where, goto, gotoHelp]);
+
+  // Sensibilité du micro (réglée dans les Réglages, ou ici même, dans le bruit).
+  const micSensitivity = settings.micSensitivity;
+  useEffect(() => {
+    voice.setSensitivity(micSensitivity);
+  }, [micSensitivity]);
 
   // Les mains occupées : l'écran ne doit pas s'éteindre pendant la préparation.
   const keepAwake = settings.keepAwake;
@@ -236,5 +275,9 @@ export function usePrep() {
     snapshot,
     settings,
     actions: { next, prev, repeat, pause, resume },
+    sheet,
+    openSheet: setSheet,
+    closeSheet,
+    jumpTo,
   };
 }

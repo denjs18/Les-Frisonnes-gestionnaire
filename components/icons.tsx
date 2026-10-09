@@ -100,6 +100,14 @@ export const UploadIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const SlidersIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 7h8M18 7h2M4 17h2M12 17h8" />
+    <circle cx="15" cy="7" r="2.2" />
+    <circle cx="9" cy="17" r="2.2" />
+  </Icon>
+);
+
 export const ChevronDownIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M6 9l6 6 6-6" strokeWidth={3} />

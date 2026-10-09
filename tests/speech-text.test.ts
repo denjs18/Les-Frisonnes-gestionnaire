@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_ALIASES, stepSentence, toSpoken, whereSentence } from "@/lib/speech-text";
+import { ambiguousSentence, DEFAULT_ALIASES, GOTO_HELP_SENTENCE, stepSentence, toSpoken, whereSentence } from "@/lib/speech-text";
 import type { Step } from "@/lib/steps";
 
 const say = (name: string, aliases = DEFAULT_ALIASES) => toSpoken(name, aliases);
@@ -113,5 +113,23 @@ describe("phrases dictées", () => {
     expect(whereSentence(s, DEFAULT_ALIASES)).toBe(
       "Produit 3 sur 17, Yaourt nature 0,5 litre. Étape 4 sur 9 : 4 pour Nature Champs.",
     );
+  });
+});
+
+describe("ambiguousSentence : plusieurs possibilités", () => {
+  it("cite les produits possibles, lus comme à l'habitude, et demande de préciser", () => {
+    expect(ambiguousSentence("produits", ["FB 0,5", "FB 1"], DEFAULT_ALIASES)).toBe(
+      "Plusieurs produits correspondent : fromage blanc 0,5, fromage blanc 1. Précisez.",
+    );
+  });
+
+  it("n'en cite que trois, puis dit qu'il y en a d'autres", () => {
+    expect(ambiguousSentence("clients", ["Alice", "Bob", "Chloé", "Dan"], DEFAULT_ALIASES)).toBe(
+      "Plusieurs clients correspondent : Alice, Bob, Chloé et d'autres. Précisez.",
+    );
+  });
+
+  it("l'aide donne un exemple à dire", () => {
+    expect(GOTO_HELP_SENTENCE).toContain("reprends à fromage blanc pour Biocité");
   });
 });

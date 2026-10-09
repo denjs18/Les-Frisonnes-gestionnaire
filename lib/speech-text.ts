@@ -84,3 +84,14 @@ export function whereSentence(step: Step, aliases: Alias[]): string {
     `Étape ${step.stepNumber} sur ${step.stepCount} : ${stepSentence(step, aliases)}.`
   );
 }
+
+/** Plusieurs produits (ou clients) correspondent à ce qui a été dit : on en cite trois au plus et on demande de préciser. */
+export function ambiguousSentence(noun: "produits" | "clients", names: string[], aliases: Alias[]): string {
+  const shown = names.slice(0, 3).map((name) => toSpoken(name, aliases));
+  const more = names.length > shown.length ? " et d'autres" : "";
+  return `Plusieurs ${noun} correspondent : ${shown.join(", ")}${more}. Précisez.`;
+}
+
+/** Réponse à « aller à » sans rien d'autre : un exemple à dire. */
+export const GOTO_HELP_SENTENCE =
+  "Dites par exemple : reprends à fromage blanc, ou : reprends à fromage blanc pour Biocité. Vous pouvez aussi dire : produit 5.";

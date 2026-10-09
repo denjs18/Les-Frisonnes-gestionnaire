@@ -6,10 +6,12 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   CheckIcon,
+  ChevronDownIcon,
   PauseIcon,
   PlayIcon,
   RepeatIcon,
   SettingsIcon,
+  SlidersIcon,
   TableIcon,
   VolumeIcon,
 } from "@/components/icons";
@@ -18,8 +20,10 @@ import { usePlatform } from "@/hooks/usePlatform";
 import { usePrep } from "@/hooks/usePrep";
 import { describeMic, describeSpeechProblem } from "@/lib/labels";
 import { voice } from "@/lib/voice/service";
+import { GotoSheet } from "./GotoSheet";
 import { MicBadge } from "./MicBadge";
 import { MiniTable } from "./MiniTable";
+import { SensitivitySheet } from "./SensitivitySheet";
 
 export function PrepScreen() {
   const prep = usePrep();
@@ -67,9 +71,21 @@ export function PrepScreen() {
           <Link href="/verification" aria-label="Retour au tableau" className={buttonClass("ghost", "md", "!px-3 text-2xl")}>
             <TableIcon />
           </Link>
-          <h1 data-testid="progress" className="min-w-0 flex-1 text-center text-lg font-extrabold leading-tight">
-            Produit {step.productNumber}/{step.productCount} <span className="text-muted">·</span> Étape {step.stepNumber}/
-            {step.stepCount}
+          <h1 data-testid="progress" className="min-w-0 flex-1 text-center">
+            {/* Toucher « Produit 3/17 · Étape 4/9 » ouvre « Aller à… » : reprendre à un autre produit ou client, sans la voix. */}
+            <button
+              type="button"
+              onClick={() => prep.openSheet("goto")}
+              aria-haspopup="dialog"
+              aria-label={`Produit ${step.productNumber} sur ${step.productCount}, étape ${step.stepNumber} sur ${step.stepCount}. Aller à un autre produit ou client.`}
+              className="inline-flex min-h-12 max-w-full items-center justify-center gap-1.5 rounded-full border-2 border-line bg-surface px-3 text-lg font-extrabold leading-tight transition active:scale-[0.98]"
+            >
+              <span className="min-w-0">
+                Produit {step.productNumber}/{step.productCount} <span className="text-muted">·</span> Étape {step.stepNumber}/
+                {step.stepCount}
+              </span>
+              <ChevronDownIcon className="shrink-0 text-xl" />
+            </button>
           </h1>
           <Link href="/reglages" aria-label="Réglages" className={buttonClass("ghost", "md", "!px-3 text-2xl")}>
             <SettingsIcon />
@@ -132,16 +148,34 @@ export function PrepScreen() {
 
             <div className="mt-auto flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1">
               <MicBadge status={snapshot.micStatus} onPress={onMicPress} />
+              {snapshot.micStatus !== "unsupported" && (
+                <button
+                  type="button"
+                  onClick={() => prep.openSheet("sensitivity")}
+                  aria-label="Sensibilité du micro"
+                  data-testid="sensitivity-button"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-line bg-surface text-2xl transition active:scale-95"
+                >
+                  <SlidersIcon />
+                </button>
+              )}
               {/* Avec un texte très agrandi (réglages d'Android), le texte passe sous le badge au lieu d'être écrasé à côté. */}
               <p data-testid="heard" aria-live="polite" className="min-w-[9rem] flex-1 text-sm leading-snug text-muted">
                 {heard ? (
                   <>
                     Entendu : «&nbsp;
                     <span className={heard.isFinal ? "font-bold text-fg" : "italic"}>{heard.text}</span>&nbsp;»
-                    {decision && (
-                      <span className={`ml-1 font-extrabold ${decision.label ? "text-ok" : "text-muted"}`}>
-                        {decision.label ? `→ ${decision.label}` : "(ignoré)"}
-                      </span>
+                    {settings.micSensitivity !== "normal" && heard.confidence !== null && (
+                      <span> {Math.round(heard.confidence * 100)}&nbsp;%</span>
+                    )}
+                    {heard.rejected ? (
+                      <span className="ml-1 whitespace-nowrap font-extrabold text-warn-text">(pas assez net)</span>
+                    ) : (
+                      decision && (
+                        <span className={`ml-1 whitespace-nowrap font-extrabold ${decision.label ? "text-ok" : "text-muted"}`}>
+                          {decision.label ? `→ ${decision.label}` : "(ignoré)"}
+                        </span>
+                      )
                     )}
                   </>
                 ) : mic.on ? (
@@ -221,6 +255,28 @@ export function PrepScreen() {
           </div>
         </div>
       </div>
+
+      {prep.sheet === "goto" && (
+        <GotoSheet
+          plan={plan}
+          currentIndex={prep.index}
+          onGo={(position) => {
+            prep.jumpTo(position);
+            prep.closeSheet();
+          }}
+          onClose={prep.closeSheet}
+        />
+      )}
+      {prep.sheet === "sensitivity" && (
+        <SensitivitySheet
+          value={settings.micSensitivity}
+          onChange={(micSensitivity) => dispatch({ type: "updateSettings", patch: { micSensitivity } })}
+          micOn={mic.on}
+          heard={heard}
+          decision={decision}
+          onClose={prep.closeSheet}
+        />
+      )}
     </div>
   );
 }
