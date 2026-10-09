@@ -336,6 +336,8 @@ test.describe("réglages et aide", () => {
     await page.getByRole("button", { name: "Tout est correct, commencer" }).click();
     await expect(page.getByTestId("quantity")).toHaveText("3");
     await shot(page, "15-preparation-sombre");
+    await page.goto("/");
+    await shot(page, "17-accueil-sombre");
   });
 
   test("une règle de prononciation personnalisée change ce qui est dit", async ({ page }) => {
@@ -395,9 +397,20 @@ test.describe("réglages et aide", () => {
     await expect(page.getByText("Préparation en cours")).toHaveCount(0);
   });
 
+  test("l'accueil affiche le logo de la fromagerie et la scène de ferme", async ({ page }) => {
+    await page.goto("/");
+    const logo = page.getByRole("img", { name: "Fromagerie des Frisonnes" });
+    await expect(logo).toBeVisible();
+    expect(await logo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 100)).toBe(true);
+    // les dessins sont décoratifs : cachés des lecteurs d'écran
+    expect(await page.locator("svg[aria-hidden='true']").count()).toBeGreaterThan(2);
+    await expect(page.locator('meta[name="theme-color"]').first()).toHaveAttribute("content", /^#[0-9a-f]{6}$/i);
+  });
+
   test("une adresse inconnue affiche une page d'erreur en français", async ({ page }) => {
     await page.goto("/nimporte-quoi");
     await expect(page.getByText("Cette page n'existe pas.")).toBeVisible();
+    await shot(page, "18-introuvable");
     await page.getByRole("link", { name: "Retour à l'accueil" }).click();
     await expect(page.getByRole("heading", { name: "Commencer" })).toBeVisible();
   });
