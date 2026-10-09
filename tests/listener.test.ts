@@ -267,10 +267,12 @@ describe("Listener : erreurs", () => {
     expect(listener.status).toBe("starting");
   });
 
-  it("service non autorisé (iPhone en mode application) : état « denied »", () => {
+  it("service non autorisé (iPhone, appli installée) : état « unavailable », sans insister", () => {
     const listener = started();
     current().fireError("service-not-allowed");
-    expect(listener.status).toBe("denied");
+    expect(listener.status).toBe("unavailable");
+    vi.advanceTimersByTime(60000);
+    expect(FakeRecognition.instances).toHaveLength(1);
   });
 
   it("aucun micro : état « no-mic »", () => {

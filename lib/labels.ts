@@ -42,6 +42,14 @@ export function describeMic(status: ListenerStatus): MicDescription {
         on: false,
         listening: false,
       };
+    case "unavailable":
+      return {
+        label: "Micro indisponible",
+        tone: "warn",
+        hint: "La reconnaissance vocale n'est pas disponible ici (c'est fréquent sur iPhone, surtout quand l'appli est installée sur l'écran d'accueil, ou si la dictée est désactivée dans les réglages du téléphone). Utilisez les gros boutons.",
+        on: false,
+        listening: false,
+      };
     case "no-mic":
       return {
         label: "Micro introuvable",

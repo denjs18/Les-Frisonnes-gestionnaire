@@ -48,6 +48,7 @@ export type ListenerStatus =
   | "listening"
   | "suspended" // en pause pendant que l'appli parle
   | "denied" // autorisation du micro refusée
+  | "unavailable" // le système n'offre pas la reconnaissance vocale ici (ex. iPhone, appli installée)
   | "no-mic" // aucun micro utilisable
   | "network" // la reconnaissance vocale du navigateur a besoin d'Internet
   | "error"; // micro instable : on arrête d'insister
@@ -70,7 +71,7 @@ export interface ListenerOptions {
 }
 
 type Timer = ReturnType<typeof setTimeout>;
-type Fatal = "denied" | "no-mic" | "network" | "error";
+type Fatal = "denied" | "unavailable" | "no-mic" | "network" | "error";
 
 /**
  * Écoute continue en français, relancée automatiquement (les navigateurs coupent l'écoute
@@ -296,8 +297,10 @@ export class Listener {
       case "aborted":
         return; // normal : le navigateur relance via onend
       case "not-allowed":
-      case "service-not-allowed":
         this.fatal = "denied";
+        break;
+      case "service-not-allowed":
+        this.fatal = "unavailable";
         break;
       case "audio-capture":
         this.fatal = "no-mic";
