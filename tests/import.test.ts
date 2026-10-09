@@ -55,6 +55,13 @@ describe("lecture CSV", () => {
     expect(decodeText(utf8("Biocité"))).toBe("Biocité");
     expect(decodeText(Uint8Array.from(Buffer.from("Biocité;Élevage", "latin1")))).toBe("Biocité;Élevage");
   });
+
+  it("décode aussi le « Texte Unicode » d'Excel (UTF-16 avec marque d'ordre des octets)", () => {
+    const le = Uint8Array.from(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from("Nom\tFB\nBiocité\t2", "utf16le")]));
+    expect(decodeText(le)).toBe("Nom\tFB\nBiocité\t2");
+    const be = Uint8Array.from(Buffer.concat([Buffer.from([0xfe, 0xff]), Buffer.from("Nom\tFB", "utf16le").swap16()]));
+    expect(decodeText(be)).toBe("Nom\tFB");
+  });
 });
 
 describe("import d'un fichier CSV complet", () => {
@@ -144,5 +151,43 @@ describe("erreurs d'import lisibles", () => {
   it("refuse un faux fichier Excel", async () => {
     const fake = Uint8Array.from([0x50, 0x4b, 0x00, 0x00, 1, 2, 3, 4]);
     await expect(importBytes(fake, "faux.xlsx")).rejects.toThrow(ImportError);
+  });
+});
+
+describe("fichiers qui ne sont pas des tableaux (le sélecteur d'Android ne filtre rien)", () => {
+  const padded = (...head: number[]) => Uint8Array.from([...head, ...new Array(64).fill(7)]);
+
+  it("explique qu'un PDF ou une image n'est pas un tableau", async () => {
+    const samples: [string, Uint8Array, RegExp][] = [
+      ["bon.pdf", padded(0x25, 0x50, 0x44, 0x46, 0x2d), /un PDF, pas un tableau/],
+      ["photo.jpg", padded(0xff, 0xd8, 0xff, 0xe0), /une image, pas un tableau/],
+      ["capture.png", padded(0x89, 0x50, 0x4e, 0x47), /une image/],
+      ["anim.gif", padded(0x47, 0x49, 0x46, 0x38), /une image/],
+      ["photo.webp", padded(0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50), /une image/],
+      ["IMG_0001.heic", padded(0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63), /une photo ou une vidéo/],
+    ];
+    for (const [name, bytes, message] of samples) {
+      await expect(importBytes(bytes, name), name).rejects.toThrow(message);
+      await expect(importBytes(bytes, name), name).rejects.toThrow(ImportError);
+    }
+  });
+
+  it("refuse un fichier binaire inconnu plutôt que de l'afficher comme du texte", async () => {
+    const binary = Uint8Array.from([1, 2, 3, 0, 0, 5, 6, 7, ...new Array(40).fill(65)]);
+    await expect(importBytes(binary, "document")).rejects.toThrow(/n'est pas un tableau Excel ou CSV/);
+  });
+
+  it("lit un fichier sans extension d'après son contenu, comme en renvoie parfois le sélecteur d'Android", async () => {
+    const csv = utf8("Nom;Fromage\nAlice;2\nBob;3");
+    expect((await importBytes(csv, "document")).rows.map((r) => r.name)).toEqual(["Alice", "Bob"]);
+    expect((await importBytes(csv, "msf:1000012345")).columns.map((c) => c.name)).toEqual(["Fromage"]);
+  });
+
+  it("lit un « Texte Unicode » d'Excel (UTF-16, tabulations)", async () => {
+    const text = "Nom\tFromage\tBleu\nAlice\t2\t1\nBob\t3\t\n";
+    const bytes = Uint8Array.from(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text, "utf16le")]));
+    const model = await importBytes(bytes, "commande.txt");
+    expect(model.columns.map((c) => c.name)).toEqual(["Fromage", "Bleu"]);
+    expect(model.rows.map((r) => r.name)).toEqual(["Alice", "Bob"]);
   });
 });

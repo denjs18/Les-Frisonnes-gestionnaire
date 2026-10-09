@@ -1,8 +1,14 @@
 import { cleanText } from "../text";
 import type { RawCell, RawGrid } from "../types";
 
-/** Décode des octets : UTF-8 d'abord, sinon Windows-1252 (CSV exporté par un Excel français). */
+/** Texte en UTF-16 (« Texte Unicode » d'Excel) : il commence par une marque d'ordre des octets. */
+export function hasUtf16Bom(bytes: Uint8Array): boolean {
+  return bytes.length >= 2 && ((bytes[0] === 0xff && bytes[1] === 0xfe) || (bytes[0] === 0xfe && bytes[1] === 0xff));
+}
+
+/** Décode des octets : UTF-16 s'il y a une marque, sinon UTF-8, sinon Windows-1252 (CSV exporté par un Excel français). */
 export function decodeText(bytes: Uint8Array): string {
+  if (hasUtf16Bom(bytes)) return new TextDecoder(bytes[0] === 0xff ? "utf-16le" : "utf-16be").decode(bytes);
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {

@@ -1,6 +1,6 @@
 import { buildModel } from "../grid";
 import type { RawGrid, SheetModel } from "../types";
-import { csvToGrid, decodeText } from "./csv";
+import { csvToGrid, decodeText, hasUtf16Bom } from "./csv";
 import { ImportError, type TableImporter } from "./types";
 import { xlsxToGrid } from "./xlsx";
 
@@ -10,6 +10,39 @@ const MAX_BYTES = 8 * 1024 * 1024;
 /** Au-delà (plusieurs centaines de lignes par plusieurs dizaines de colonnes), l'affichage du tableau deviendrait trop lent. */
 const MAX_CELLS = 40_000;
 const SPREADSHEET_EXTENSIONS = ["xlsx", "xlsm", "xls", "ods"];
+
+/** Commence par ces octets ? */
+function startsWith(bytes: Uint8Array, ...signature: number[]): boolean {
+  return signature.every((byte, i) => bytes[i] === byte);
+}
+
+/**
+ * Sur Android, le sélecteur de fichiers n'est pas filtré (un filtre griserait les fichiers que le téléphone ne
+ * reconnaît pas comme Excel) : on peut donc recevoir n'importe quoi. Reconnaît, à ses premiers octets, ce qui n'est
+ * manifestement pas un tableau.
+ */
+function describeNonTable(bytes: Uint8Array): string | null {
+  if (startsWith(bytes, 0x25, 0x50, 0x44, 0x46)) return "un PDF"; // %PDF
+  if (
+    startsWith(bytes, 0xff, 0xd8, 0xff) || // JPEG
+    startsWith(bytes, 0x89, 0x50, 0x4e, 0x47) || // PNG
+    startsWith(bytes, 0x47, 0x49, 0x46, 0x38) || // GIF
+    (startsWith(bytes, 0x52, 0x49, 0x46, 0x46) && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) // WebP
+  ) {
+    return "une image";
+  }
+  // Photo HEIC, vidéo MP4… : « ftyp » aux octets 4 à 7.
+  if (bytes.length >= 12 && bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) return "une photo ou une vidéo";
+  return null;
+}
+
+/** Un texte (CSV) ne contient jamais d'octet nul, sauf en UTF-16 ; sinon c'est un fichier binaire inconnu. */
+function looksBinary(bytes: Uint8Array): boolean {
+  if (hasUtf16Bom(bytes)) return false;
+  const end = Math.min(bytes.length, 2048);
+  for (let i = 0; i < end; i++) if (bytes[i] === 0) return true;
+  return false;
+}
 
 function extensionOf(fileName: string): string {
   const dot = fileName.lastIndexOf(".");
@@ -28,9 +61,13 @@ function isSpreadsheetBinary(bytes: Uint8Array, fileName: string): boolean {
 export async function readGrid(bytes: Uint8Array, fileName: string): Promise<RawGrid> {
   if (bytes.length === 0) throw new ImportError("Ce fichier est vide.");
   if (bytes.length > MAX_BYTES) throw new ImportError("Ce fichier est trop gros (8 Mo maximum).");
-  return isSpreadsheetBinary(bytes, fileName)
-    ? xlsxToGrid(bytes)
-    : csvToGrid(decodeText(bytes), "CSV");
+  if (isSpreadsheetBinary(bytes, fileName)) return xlsxToGrid(bytes);
+  const nonTable = describeNonTable(bytes);
+  if (nonTable) throw new ImportError(`Ce fichier est ${nonTable}, pas un tableau. Choisissez le fichier Excel (.xlsx) ou CSV.`);
+  if (looksBinary(bytes)) {
+    throw new ImportError("Ce fichier n'est pas un tableau Excel ou CSV. Choisissez un fichier .xlsx ou .csv.");
+  }
+  return csvToGrid(decodeText(bytes), "CSV");
 }
 
 /** Lit un fichier (en mémoire) et renvoie le modèle, ou lève une ImportError lisible. */
