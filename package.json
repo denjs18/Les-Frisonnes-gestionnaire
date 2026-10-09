@@ -2,6 +2,9 @@
   "name": "prepa-commandes",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=22.12"
+  },
   "description": "Prépa Commandes : préparation de commandes de produits laitiers guidée à la voix",
   "scripts": {
     "dev": "next dev",

@@ -122,8 +122,8 @@ export function HomeScreen() {
         <Card className="flex flex-col gap-3">
           <h2 className="text-xl font-extrabold">{session ? "Nouveau fichier" : "Commencer"}</h2>
           <p className="text-base text-muted">
-            Choisissez le tableau des commandes ({spreadsheetImporter.label}). Rien n&apos;est envoyé sur Internet : tout reste sur cet
-            appareil.
+            Choisissez le tableau des commandes ({spreadsheetImporter.label}). Le fichier est lu sur cet appareil et n&apos;est envoyé
+            nulle part.
           </p>
           <input
             ref={inputRef}

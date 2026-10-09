@@ -260,8 +260,8 @@ export function SettingsScreen() {
 
         <Section title="Données">
           <p className="text-sm text-muted">
-            Tout est enregistré uniquement sur cet appareil (rien n&apos;est envoyé sur Internet). Effacer supprime la préparation en cours
-            et les réglages.
+            Le fichier et les réglages sont enregistrés uniquement sur cet appareil : ils ne sont envoyés nulle part. Effacer supprime la
+            préparation en cours et les réglages.
           </p>
           <Button variant="danger" size="lg" onClick={eraseEverything}>
             <TrashIcon className="text-2xl" />
