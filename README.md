@@ -33,9 +33,27 @@ dans le navigateur (`localStorage`) pour pouvoir être reprise.
 
 ### Commandes vocales
 
-`suivant` · `précédent` · `répète` · `pause` · `reprends` · `où j'en suis` · `reprends à <produit> pour <client>`.
+`suivant` · `précédent` · `répète` · `pause` · `reprends` · `où j'en suis`, et pour reprendre à un endroit précis :
+`reprends à <produit> pour <client>` (aussi « reviens à », « va à »…), `reprends à <client>` (un client du produit en cours),
+`produit 5`, `étape 3`, `reprends au début`.
 Seuls ces mots **exacts** sont pris en compte (une phrase qui les contient ne déclenche rien) et une commande
 répétée aussitôt est ignorée. Le texte entendu est affiché à l'écran.
+
+Les noms sont retrouvés sans tenir compte du pluriel, des accents, des mots coupés ou collés autrement (« bio cité »), ni
+d'une faute d'une lettre ; les nombres dits en toutes lettres valent les chiffres (« quatre saisons » = « 4 saisons »).
+Quand plusieurs produits conviennent (« fromage blanc » : FB 0,5 et FB 1), l'appli les cite et demande de préciser.
+
+**Sans la voix**, toucher « Produit 3/17 · Étape 4/9 » en haut de l'écran de préparation ouvre « Aller à… » : on choisit le produit,
+puis le total ou un client.
+
+### Micro et bruit
+
+Le navigateur ne donne pas accès au volume d'écoute du micro. Le réglage **Sensibilité** (Normale, Basse, Très basse) change à la
+place l'exigence de l'appli. En Basse et Très basse, seuls comptent les résultats *définitifs* du micro (jamais un résultat
+provisoire resté stable), avec un seuil de confiance de 0,6 ou 0,8 et sans les hypothèses de secours ; un résultat sans confiance
+indiquée est gardé. Réglable dans les Réglages et sur l'écran de préparation (bouton aux deux curseurs, à côté du badge du micro),
+avec un essai en direct : texte entendu, pourcentage, pris en compte ou non. Les seuils sont dans `lib/voice/sensitivity.ts`, à
+ajuster d'après les essais sur place (ventilateurs, chambre froide).
 
 ## Android et iPhone
 

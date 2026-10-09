@@ -25,6 +25,8 @@ const COMMANDS: [string, string][] = [
   ["« reprends »", "sort de la pause et redit l'étape"],
   ["« où j'en suis »", "dit le produit, l'étape et la quantité en cours"],
   ["« reprends à yaourt citron pour Biocité »", "va directement à ce produit et à ce client (sans client : au total du produit)"],
+  ["« reprends à Biocité »", "va à ce client dans le produit en cours"],
+  ["« produit 5 », « étape 3 », « reprends au début »", "va au produit n° 5 (celui affiché en haut), à l'étape 3 du produit en cours, ou au tout début"],
 ];
 
 export default function HelpPage() {
@@ -102,7 +104,46 @@ export default function HelpPage() {
             commande répétée aussitôt est ignorée. Le texte entendu est affiché en bas de l&apos;écran. Le micro se coupe quelques
             instants pendant que l&apos;appli parle.
           </p>
+          <p>
+            « Reviens à » et « va à » marchent comme « reprends à ». Si plusieurs produits portent le même nom (« fromage blanc »),
+            l&apos;appli les cite : précisez alors le produit, ou ajoutez le client.
+          </p>
           <p>Sur ordinateur : flèches gauche et droite (précédent, suivant), R (répéter), P (pause).</p>
+        </Section>
+
+        <Section title="Reprendre à un endroit précis">
+          <p>
+            <strong>Sans la voix</strong> : touchez <strong>« Produit 3/17 · Étape 4/9 »</strong> en haut de l&apos;écran de
+            préparation. Choisissez le produit, puis « Total à sortir » ou le client : l&apos;appli y va et le dit à voix haute.
+          </p>
+          <p>
+            <strong>À la voix</strong> : « reprends à fromage blanc pour Biocité », « reprends à Biocité » (un client du produit en
+            cours), « produit 5 », « étape 3 » ou « reprends au début ». Dites seulement « reprends à » pour entendre un exemple.
+          </p>
+        </Section>
+
+        <Section title="Dans un endroit bruyant">
+          <p>
+            Le téléphone ne permet pas de régler le volume d&apos;écoute du micro. L&apos;appli propose à la place de baisser sa{" "}
+            <strong>sensibilité</strong> : elle ignore alors ce que le micro entend mal, ce qui évite les fausses commandes dues aux
+            ventilateurs ou aux conversations.
+          </p>
+          <ol className="list-decimal space-y-1 pl-5">
+            <li>
+              Touchez le bouton aux deux curseurs, à côté du badge « Micro » (ou ouvrez les Réglages).
+            </li>
+            <li>
+              Choisissez <strong>Basse</strong> (un peu de bruit) ou <strong>Très basse</strong> (beaucoup de bruit).
+            </li>
+            <li>
+              Essayez : dites « suivant ». L&apos;appli montre ce qu&apos;elle a entendu, avec un pourcentage, et si elle l&apos;aurait
+              pris en compte. Rien ne bouge pendant l&apos;essai.
+            </li>
+          </ol>
+          <p>
+            Contrepartie : parlez plus près et nettement, et l&apos;appli réagit un peu moins vite. Si elle ignore trop de vos commandes,
+            remontez d&apos;un niveau.
+          </p>
         </Section>
 
         <Section title="Installer sur l'écran d'accueil">
