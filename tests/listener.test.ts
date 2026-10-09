@@ -192,6 +192,63 @@ describe("Listener : ce que l'on entend", () => {
   });
 });
 
+describe("Listener : le résultat final d'un énoncé déjà traité (réseau lent, Android)", () => {
+  /** « suivant » reste stable : il est traité. Le résultat final de ce même énoncé arrive bien plus tard. */
+  function promoteThenLateFinal(finalText = "suivant", delayMs = 1800) {
+    current().fireResults(0, result(false, "suivant"));
+    vi.advanceTimersByTime(450);
+    expect(candidates).toEqual([["suivant"]]);
+    vi.advanceTimersByTime(delayMs);
+    current().fireResults(0, result(true, finalText));
+  }
+
+  it("n'est pas traité une deuxième fois (sinon « suivant » sauterait deux étapes), mais reste affiché", () => {
+    started({ stableMs: 450 });
+    promoteThenLateFinal();
+    expect(candidates).toEqual([["suivant"]]);
+    expect(heard[heard.length - 1]).toEqual(["suivant", true]);
+  });
+
+  it("ne tient compte ni de la casse ni de la ponctuation", () => {
+    started({ stableMs: 450 });
+    promoteThenLateFinal("Suivant.");
+    expect(candidates).toEqual([["suivant"]]);
+  });
+
+  it("un nouvel énoncé identique, une fois l'écho passé, est bien traité", () => {
+    started({ stableMs: 450 });
+    promoteThenLateFinal();
+    // La liste contient maintenant l'énoncé d'avant (indice 0) puis le nouveau (indice 1).
+    current().fireResults(1, result(true, "suivant"), result(true, "suivant"));
+    expect(candidates).toEqual([["suivant"], ["suivant"]]);
+  });
+
+  it("un énoncé identique bien plus tard n'est pas pris pour un écho", () => {
+    started({ stableMs: 450, echoMs: 3000 });
+    current().fireResults(0, result(false, "suivant"));
+    vi.advanceTimersByTime(450 + 5000);
+    current().fireResults(0, result(true, "suivant"));
+    expect(candidates).toEqual([["suivant"], ["suivant"]]);
+  });
+
+  it("un résultat final différent est traité normalement (« suivant la route » n'est pas « suivant »)", () => {
+    started({ stableMs: 450 });
+    promoteThenLateFinal("suivant la route");
+    expect(candidates).toEqual([["suivant"], ["suivant la route"]]);
+  });
+
+  it("la fin de l'écoute fait oublier le résultat traité : la nouvelle écoute repart de zéro", () => {
+    started({ stableMs: 450 });
+    current().fireResults(0, result(false, "pause"));
+    vi.advanceTimersByTime(450);
+    current().fireEnd();
+    vi.advanceTimersByTime(300);
+    current().fireStart();
+    current().fireResults(0, result(true, "pause"));
+    expect(candidates).toEqual([["pause"], ["pause"]]);
+  });
+});
+
 describe("Listener : relance automatique", () => {
   it("relance l'écoute après une fin normale (silence)", () => {
     started();
@@ -265,6 +322,15 @@ describe("Listener : erreurs", () => {
     listener.retry();
     expect(FakeRecognition.instances).toHaveLength(2);
     expect(listener.status).toBe("starting");
+  });
+
+  it("français non pris en charge par la reconnaissance de l'appareil : état « unavailable », sans insister", () => {
+    const listener = started();
+    current().fireError("language-not-supported");
+    expect(listener.status).toBe("unavailable");
+    expect(current().aborted).toBe(true);
+    vi.advanceTimersByTime(60000);
+    expect(FakeRecognition.instances).toHaveLength(1);
   });
 
   it("service non autorisé (iPhone, appli installée) : état « unavailable », sans insister", () => {

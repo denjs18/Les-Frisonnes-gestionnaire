@@ -9,6 +9,28 @@ function isFrench(voice: SpeechSynthesisVoice): boolean {
   return voice.lang.replace("_", "-").toLowerCase().startsWith("fr");
 }
 
+/** Pourquoi la voix n'a pas pu parler (pour le dire à l'utilisateur) : aucune voix française, voix en ligne sans Internet, autre panne. */
+export type SpeechProblem = "no-voice" | "network" | "failed";
+
+/** Les erreurs de `speechSynthesis` qui sont une vraie panne (une coupure volontaire ou un refus faute de toucher l'écran n'en sont pas). */
+function problemOf(error: string | undefined): SpeechProblem | null {
+  switch (error) {
+    case undefined:
+    case "canceled":
+    case "interrupted":
+    case "not-allowed":
+      return null;
+    case "language-unavailable":
+    case "voice-unavailable":
+    case "synthesis-unavailable":
+      return "no-voice";
+    case "network":
+      return "network";
+    default:
+      return "failed";
+  }
+}
+
 /** Durée maximale raisonnable d'une phrase : au-delà, on considère qu'elle est finie même sans événement de fin. */
 function safetyDelay(text: string, rate: number): number {
   return Math.max(4000, Math.round((text.length * 110) / Math.max(rate, 0.5)) + 2500);
@@ -24,6 +46,9 @@ export class Speaker {
   private safetyTimer: ReturnType<typeof setTimeout> | null = null;
   private isSpeaking = false;
   private isBlocked = false;
+  private lastProblem: SpeechProblem | null = null;
+  /** La phrase en cours, gardée en vie : Chrome (surtout sur Android) peut libérer un objet que plus personne ne retient, et ne jamais signaler la fin de la phrase. */
+  private readonly live = new Set<SpeechSynthesisUtterance>();
   private voices: SpeechSynthesisVoice[] = [];
   private readonly subscribers = new Set<() => void>();
 
@@ -49,6 +74,11 @@ export class Speaker {
   /** Vrai si le navigateur a refusé de parler faute d'un geste de l'utilisateur (il faut toucher l'écran). */
   get blocked(): boolean {
     return this.isBlocked;
+  }
+
+  /** Dernière panne de la voix (aucune voix française, voix en ligne sans Internet…) ; effacée dès qu'une phrase est dite. */
+  get problem(): SpeechProblem | null {
+    return this.lastProblem;
   }
 
   /** Voix françaises disponibles (liste stable tant que le navigateur n'en signale pas de nouvelles). */
@@ -80,6 +110,8 @@ export class Speaker {
       this.startTimer = null;
       if (id !== this.seq) return;
       const utterance = this.makeUtterance(text);
+      this.live.clear();
+      this.live.add(utterance);
       utterance.lang = "fr-FR";
       utterance.rate = Math.min(2, Math.max(0.5, options.rate));
       const voice = options.voiceURI ? this.voices.find((v) => v.voiceURI === options.voiceURI) : undefined;
@@ -88,20 +120,29 @@ export class Speaker {
         utterance.lang = voice.lang;
       }
 
+      let started = false;
       const finish = (error?: string) => {
         if (id !== this.seq) return;
         this.clearTimers();
+        this.live.clear();
         this.setSpeaking(false);
         if (error === "not-allowed") this.setBlocked(true);
+        const problem = problemOf(error);
+        if (problem) this.setProblem(problem);
         onDone?.();
       };
-      utterance.onstart = () => this.setBlocked(false);
+      utterance.onstart = () => {
+        started = true;
+        this.setBlocked(false);
+        this.setProblem(null);
+      };
       utterance.onend = () => finish();
       utterance.onerror = (event) => {
         const error = event.error;
         finish(error === "canceled" || error === "interrupted" ? undefined : error);
       };
-      this.safetyTimer = setTimeout(() => finish(), safetyDelay(text, options.rate));
+      // Une phrase qui n'a même pas commencé (moteur vocal absent ou bloqué) est une panne, pas un silence voulu.
+      this.safetyTimer = setTimeout(() => finish(started ? undefined : "no-start"), safetyDelay(text, options.rate));
       try {
         synth.speak(utterance);
       } catch {
@@ -114,6 +155,7 @@ export class Speaker {
   cancel(): void {
     this.seq++;
     this.clearTimers();
+    this.live.clear();
     try {
       this.synth?.cancel();
     } catch {
@@ -147,6 +189,12 @@ export class Speaker {
   private setSpeaking(value: boolean): void {
     if (this.isSpeaking === value) return;
     this.isSpeaking = value;
+    this.notify();
+  }
+
+  private setProblem(value: SpeechProblem | null): void {
+    if (this.lastProblem === value) return;
+    this.lastProblem = value;
     this.notify();
   }
 

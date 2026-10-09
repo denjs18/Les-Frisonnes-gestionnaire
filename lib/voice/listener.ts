@@ -1,3 +1,5 @@
+import { normalizeKey } from "../text";
+
 /** Le strict nécessaire de `SpeechRecognition`, pour pouvoir le remplacer dans les tests. */
 export interface RecognitionAlternative {
   transcript: string;
@@ -68,6 +70,8 @@ export interface ListenerOptions {
   resumeDelayMs?: number;
   /** Nombre de relances ratées d'affilée avant d'abandonner. */
   maxQuickEnds?: number;
+  /** Un résultat final identique à un provisoire déjà traité, arrivé dans ce délai, est le même énoncé : on ne le traite pas deux fois. */
+  echoMs?: number;
 }
 
 type Timer = ReturnType<typeof setTimeout>;
@@ -90,12 +94,15 @@ export class Listener {
   private restartTimer: Timer | null = null;
   private resumeTimer: Timer | null = null;
   private stableTimer: Timer | null = null;
+  /** Dernier résultat provisoire traité parce qu'il était resté stable ; son résultat final, quand il arrive, n'est qu'un écho. */
+  private promoted: { key: string; at: number } | null = null;
   private lastStatus: ListenerStatus;
   private readonly subscribers = new Set<(status: ListenerStatus) => void>();
   private readonly lang: string;
   private readonly stableMs: number;
   private readonly resumeDelayMs: number;
   private readonly maxQuickEnds: number;
+  private readonly echoMs: number;
 
   constructor(
     private readonly ctor: RecognitionConstructor | null,
@@ -106,6 +113,7 @@ export class Listener {
     this.stableMs = options.stableMs ?? 450;
     this.resumeDelayMs = options.resumeDelayMs ?? 350;
     this.maxQuickEnds = options.maxQuickEnds ?? 8;
+    this.echoMs = options.echoMs ?? 3000;
     this.lastStatus = this.computeStatus();
   }
 
@@ -233,6 +241,7 @@ export class Listener {
       if (this.rec !== rec) return;
       this.rec = null;
       this.running = false;
+      this.promoted = null;
       this.clearStable();
       this.quickEnds = Date.now() - startedAt < 1500 ? this.quickEnds + 1 : 0;
       this.scheduleRestart();
@@ -275,7 +284,9 @@ export class Listener {
       this.handlers.onHeard(texts[0], result.isFinal);
       if (result.isFinal) {
         this.clearStable();
-        this.handlers.onCandidates(texts);
+        const echo = this.isEchoOfPromoted(texts[0]);
+        this.promoted = null;
+        if (!echo) this.handlers.onCandidates(texts);
       } else if (i === last) {
         this.armStable(texts);
       }
@@ -287,8 +298,18 @@ export class Listener {
     this.clearStable();
     this.stableTimer = setTimeout(() => {
       this.stableTimer = null;
+      this.promoted = { key: normalizeKey(texts[0]), at: Date.now() };
       this.handlers.onCandidates(texts);
     }, this.stableMs);
+  }
+
+  /**
+   * Le résultat final d'un énoncé arrive parfois longtemps après son provisoire stable (réseau lent, Android) :
+   * sans cette vérification, « suivant » serait exécuté deux fois et sauterait une étape.
+   */
+  private isEchoOfPromoted(finalText: string): boolean {
+    const promoted = this.promoted;
+    return promoted !== null && Date.now() - promoted.at <= this.echoMs && promoted.key === normalizeKey(finalText);
   }
 
   private handleError(code: string): void {
@@ -306,7 +327,7 @@ export class Listener {
         this.fatal = "no-mic";
         break;
       case "language-not-supported":
-        this.fatal = "error";
+        this.fatal = "unavailable"; // le français n'est pas installé pour la reconnaissance vocale de l'appareil
         break;
       case "network":
         this.networkError = true;
@@ -327,6 +348,7 @@ export class Listener {
     const rec = this.rec;
     this.rec = null;
     this.running = false;
+    this.promoted = null;
     this.clearStable();
     if (!rec) return;
     rec.onstart = null;

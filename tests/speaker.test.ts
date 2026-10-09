@@ -200,3 +200,72 @@ describe("Speaker", () => {
     expect(done).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Speaker : quand la voix ne peut pas parler", () => {
+  const speakAndFail = (error: string) => {
+    speaker.speak("une phrase", OPTIONS);
+    vi.advanceTimersByTime(60);
+    last().onerror?.({ error });
+  };
+
+  it("signale l'absence de voix française, puis s'en remet dès qu'une phrase est dite", () => {
+    expect(speaker.problem).toBeNull();
+    speakAndFail("language-unavailable");
+    expect(speaker.problem).toBe("no-voice");
+    expect(speaker.speaking).toBe(false);
+    speaker.speak("une autre", OPTIONS);
+    vi.advanceTimersByTime(60);
+    expect(speaker.problem).toBe("no-voice"); // tant que rien n'a été dit
+    last().onstart?.();
+    expect(speaker.problem).toBeNull();
+  });
+
+  it("distingue l'absence de voix, une voix qui a besoin d'Internet et les autres pannes", () => {
+    for (const error of ["language-unavailable", "voice-unavailable", "synthesis-unavailable"]) {
+      speakAndFail(error);
+      expect(speaker.problem, error).toBe("no-voice");
+    }
+    speakAndFail("network");
+    expect(speaker.problem).toBe("network");
+    for (const error of ["synthesis-failed", "audio-busy", "audio-hardware", "text-too-long", "invalid-argument"]) {
+      speakAndFail(error);
+      expect(speaker.problem, error).toBe("failed");
+    }
+  });
+
+  it("une coupure volontaire, ou un refus faute d'avoir touché l'écran, n'est pas une panne", () => {
+    for (const error of ["canceled", "interrupted", "not-allowed"]) {
+      speakAndFail(error);
+      expect(speaker.problem, error).toBeNull();
+    }
+    expect(speaker.blocked).toBe(true);
+  });
+
+  it("une phrase qui ne démarre jamais est une panne ; une phrase démarrée qui oublie de finir n'en est pas une", () => {
+    const done = vi.fn();
+    speaker.speak("une phrase", OPTIONS, done);
+    vi.advanceTimersByTime(60);
+    vi.advanceTimersByTime(10000);
+    expect(speaker.problem).toBe("failed");
+    expect(done).toHaveBeenCalledTimes(1);
+
+    speaker.speak("une autre", OPTIONS);
+    vi.advanceTimersByTime(60);
+    last().onstart?.();
+    vi.advanceTimersByTime(10000);
+    expect(speaker.speaking).toBe(false);
+    expect(speaker.problem).toBeNull();
+  });
+
+  it("prévient les abonnés quand la panne apparaît et quand elle disparaît", () => {
+    const seen = vi.fn();
+    speaker.subscribe(seen);
+    speakAndFail("synthesis-failed");
+    const afterFailure = seen.mock.calls.length;
+    speaker.speak("ok", OPTIONS);
+    vi.advanceTimersByTime(60);
+    last().onstart?.();
+    expect(seen.mock.calls.length).toBeGreaterThan(afterFailure);
+    expect(speaker.problem).toBeNull();
+  });
+});

@@ -13,15 +13,17 @@ import {
   TableIcon,
   VolumeIcon,
 } from "@/components/icons";
-import { Banner, Button, buttonClass, ScreenHeader, Skeleton } from "@/components/ui";
+import { Banner, Button, buttonClass, FoldedBanner, ScreenHeader, Skeleton } from "@/components/ui";
+import { usePlatform } from "@/hooks/usePlatform";
 import { usePrep } from "@/hooks/usePrep";
-import { describeMic } from "@/lib/labels";
+import { describeMic, describeSpeechProblem } from "@/lib/labels";
 import { voice } from "@/lib/voice/service";
 import { MicBadge } from "./MicBadge";
 import { MiniTable } from "./MiniTable";
 
 export function PrepScreen() {
   const prep = usePrep();
+  const platform = usePlatform();
   const { dispatch } = useApp();
   const { snapshot, settings, step, plan, actions } = prep;
 
@@ -34,7 +36,8 @@ export function PrepScreen() {
     );
   }
 
-  const mic = describeMic(snapshot.micStatus);
+  const mic = describeMic(snapshot.micStatus, platform);
+  const speechProblem = snapshot.speechProblem ? describeSpeechProblem(snapshot.speechProblem, platform) : null;
   const heard = snapshot.heard;
   const decision = heard && prep.decision?.heard === heard.text ? prep.decision : null;
   const isTotal = step.kind === "total";
@@ -42,7 +45,10 @@ export function PrepScreen() {
   function onMicPress() {
     if (!settings.micEnabled) {
       dispatch({ type: "updateSettings", patch: { micEnabled: true } });
-    } else if (["denied", "no-mic", "network", "error"].includes(snapshot.micStatus)) {
+    } else if (
+      ["denied", "no-mic", "network", "error"].includes(snapshot.micStatus) ||
+      (snapshot.micStatus === "unavailable" && platform.os === "android") // sur Android, on peut corriger (appli Google) puis réessayer
+    ) {
       voice.retryMic();
     } else if (snapshot.micStatus !== "unsupported") {
       dispatch({ type: "updateSettings", patch: { micEnabled: false } });
@@ -75,7 +81,7 @@ export function PrepScreen() {
       </header>
 
       {/* Tout tient dans l'écran : seul le mini-tableau défile (dans son cadre). Sur un écran vraiment trop petit, la zone défile. */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div data-testid="prep-scroll" className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex h-full min-h-[28rem] w-full max-w-5xl flex-col gap-3 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 landscape:min-h-[17rem] landscape:flex-row landscape:gap-4">
           <section
             aria-live="polite"
@@ -85,12 +91,12 @@ export function PrepScreen() {
           >
             <p
               data-testid="product"
-              className="text-balance text-[clamp(1.5rem,min(7vw,4.2dvh),3rem)] font-extrabold leading-tight"
+              className="text-balance break-words text-[clamp(1.5rem,min(7vw,4.2dvh),3rem)] font-extrabold leading-tight"
             >
               {step.productName}
             </p>
             <span
-              className={`rounded-full px-4 py-0.5 text-base font-black uppercase tracking-wider ${
+              className={`rounded-full px-4 py-0.5 text-[min(1rem,4.2vw)] font-black uppercase tracking-wider ${
                 isTotal ? "bg-accent text-accent-fg" : "bg-primary-soft text-fg"
               }`}
             >
@@ -105,7 +111,7 @@ export function PrepScreen() {
             {!isTotal && (
               <p
                 data-testid="client"
-                className="text-balance text-[clamp(1.6rem,min(8vw,4.6dvh),3.25rem)] font-extrabold leading-tight"
+                className="text-balance break-words text-[clamp(1.6rem,min(8vw,4.6dvh),3.25rem)] font-extrabold leading-tight"
               >
                 {step.clientName}
               </p>
@@ -124,9 +130,10 @@ export function PrepScreen() {
               className="min-h-16 flex-initial [@media(max-height:600px)]:hidden [[data-scale=xlarge]_&]:hidden"
             />
 
-            <div className="mt-auto flex shrink-0 items-center gap-3">
+            <div className="mt-auto flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1">
               <MicBadge status={snapshot.micStatus} onPress={onMicPress} />
-              <p data-testid="heard" aria-live="polite" className="min-w-0 flex-1 text-sm leading-snug text-muted">
+              {/* Avec un texte très agrandi (réglages d'Android), le texte passe sous le badge au lieu d'être écrasé à côté. */}
+              <p data-testid="heard" aria-live="polite" className="min-w-[9rem] flex-1 text-sm leading-snug text-muted">
                 {heard ? (
                   <>
                     Entendu : «&nbsp;
@@ -145,8 +152,16 @@ export function PrepScreen() {
               </p>
             </div>
 
+            {/* Repliées sur une ligne : ces explications sont longues et ne doivent pas pousser les gros boutons hors de l'écran. */}
             {mic.hint && snapshot.micStatus !== "off" && (
-              <Banner tone={mic.tone === "danger" ? "danger" : "warn"}>{mic.hint}</Banner>
+              <FoldedBanner tone={mic.tone === "danger" ? "danger" : "warn"} title="Micro : que faire ?" data-testid="mic-hint">
+                {mic.hint}
+              </FoldedBanner>
+            )}
+            {speechProblem && !snapshot.speechBlocked && (
+              <FoldedBanner tone="warn" title={speechProblem.title} data-testid="speech-problem">
+                {speechProblem.hint}
+              </FoldedBanner>
             )}
             {prep.snapshot.speechBlocked && (
               <Button variant="warn" size="lg" onClick={enableSound}>
@@ -159,16 +174,16 @@ export function PrepScreen() {
               <Button
                 variant="primary"
                 size="none"
-                className="min-h-[clamp(4.5rem,11dvh,6.5rem)] w-full rounded-3xl px-6 text-4xl"
+                className="min-h-[clamp(4.5rem,11dvh,6.5rem)] w-full rounded-3xl px-6 text-[min(2.25rem,9vw)]"
                 onClick={actions.next}
               >
                 {prep.isLast ? (
                   <>
-                    Terminer <CheckIcon className="text-5xl" />
+                    Terminer <CheckIcon className="text-[min(3rem,11vw)]" />
                   </>
                 ) : (
                   <>
-                    Suivant <ArrowRightIcon className="text-5xl" />
+                    Suivant <ArrowRightIcon className="text-[min(3rem,11vw)]" />
                   </>
                 )}
               </Button>
@@ -176,29 +191,29 @@ export function PrepScreen() {
                 <Button
                   variant="secondary"
                   size="none"
-                  className="min-h-[clamp(3.75rem,9dvh,5rem)] flex-col gap-0.5 rounded-2xl px-1 text-base"
+                  className="min-h-[clamp(3.75rem,9dvh,5rem)] flex-col gap-0.5 rounded-2xl px-1 text-[min(1rem,4vw)]"
                   disabled={prep.index === 0}
                   onClick={actions.prev}
                 >
-                  <ArrowLeftIcon className="text-3xl" />
+                  <ArrowLeftIcon className="text-[min(1.875rem,8vw)]" />
                   Précédent
                 </Button>
                 <Button
                   variant="secondary"
                   size="none"
-                  className="min-h-[clamp(3.75rem,9dvh,5rem)] flex-col gap-0.5 rounded-2xl px-1 text-base"
+                  className="min-h-[clamp(3.75rem,9dvh,5rem)] flex-col gap-0.5 rounded-2xl px-1 text-[min(1rem,4vw)]"
                   onClick={actions.repeat}
                 >
-                  <RepeatIcon className="text-3xl" />
+                  <RepeatIcon className="text-[min(1.875rem,8vw)]" />
                   Répéter
                 </Button>
                 <Button
                   variant={prep.paused ? "ok" : "accent"}
                   size="none"
-                  className="min-h-[clamp(3.75rem,9dvh,5rem)] flex-col gap-0.5 rounded-2xl px-1 text-base"
+                  className="min-h-[clamp(3.75rem,9dvh,5rem)] flex-col gap-0.5 rounded-2xl px-1 text-[min(1rem,4vw)]"
                   onClick={prep.paused ? actions.resume : actions.pause}
                 >
-                  {prep.paused ? <PlayIcon className="text-3xl" /> : <PauseIcon className="text-3xl" />}
+                  {prep.paused ? <PlayIcon className="text-[min(1.875rem,8vw)]" /> : <PauseIcon className="text-[min(1.875rem,8vw)]" />}
                   {prep.paused ? "Reprendre" : "Pause"}
                 </Button>
               </div>

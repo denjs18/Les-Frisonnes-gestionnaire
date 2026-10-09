@@ -1,5 +1,5 @@
 import { findRecognitionConstructor, Listener, type ListenerStatus } from "./listener";
-import { Speaker, type SpeakOptions } from "./speaker";
+import { Speaker, type SpeakOptions, type SpeechProblem } from "./speaker";
 
 export interface VoiceInfo {
   voiceURI: string;
@@ -18,6 +18,8 @@ export interface VoiceSnapshot {
   speaking: boolean;
   /** Le navigateur refuse de parler tant que l'utilisateur n'a pas touché l'écran. */
   speechBlocked: boolean;
+  /** La voix n'a pas pu parler (aucune voix française, voix en ligne sans Internet…) ; effacé dès qu'une phrase est dite. */
+  speechProblem: SpeechProblem | null;
   micStatus: ListenerStatus;
   voices: VoiceInfo[];
   /** Dernier texte entendu par le micro (effacé après quelques secondes). */
@@ -28,6 +30,7 @@ const SERVER_SNAPSHOT: VoiceSnapshot = {
   ttsSupported: false,
   speaking: false,
   speechBlocked: false,
+  speechProblem: null,
   micStatus: "off",
   voices: [],
   heard: null,
@@ -74,6 +77,7 @@ class VoiceService {
       ttsSupported: this.speaker.supported,
       speaking: this.speaker.speaking,
       speechBlocked: this.speaker.blocked,
+      speechProblem: this.speaker.problem,
       micStatus: this.listener.status,
       voices: this.voices,
       heard: this.heard,
@@ -87,6 +91,7 @@ class VoiceService {
       prev.ttsSupported === next.ttsSupported &&
       prev.speaking === next.speaking &&
       prev.speechBlocked === next.speechBlocked &&
+      prev.speechProblem === next.speechProblem &&
       prev.micStatus === next.micStatus &&
       prev.voices === next.voices &&
       prev.heard === next.heard;

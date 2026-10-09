@@ -1,7 +1,9 @@
 import { formatQuantity } from "./format";
+import { UNKNOWN_PLATFORM, type Platform } from "./platform";
 import { MAX_QUANTITY, type CellIssue, type ColumnReason, type RowReason } from "./rules";
 import type { CellValue } from "./types";
 import type { ListenerStatus } from "./voice/listener";
+import type { SpeechProblem } from "./voice/speaker";
 
 export type MicTone = "ok" | "muted" | "warn" | "danger";
 
@@ -16,8 +18,9 @@ export interface MicDescription {
   listening: boolean;
 }
 
-/** Ce que l'on dit à l'utilisateur sur l'état du micro. */
-export function describeMic(status: ListenerStatus): MicDescription {
+/** Ce que l'on dit à l'utilisateur sur l'état du micro (les conseils s'adaptent au téléphone : Android, iPhone…). */
+export function describeMic(status: ListenerStatus, platform: Platform = UNKNOWN_PLATFORM): MicDescription {
+  const { os } = platform;
   switch (status) {
     case "listening":
       return { label: "Micro actif", tone: "ok", hint: null, on: true, listening: true };
@@ -30,7 +33,11 @@ export function describeMic(status: ListenerStatus): MicDescription {
       return {
         label: "Micro indisponible",
         tone: "warn",
-        hint: "Ce navigateur ne sait pas écouter la voix. Utilisez les gros boutons.",
+        hint: platform.inAppBrowser
+          ? `Ce navigateur, intégré à une autre appli, ne sait pas écouter la voix. Ouvrez l'adresse dans ${os === "ios" ? "Safari" : "Chrome"}, ou utilisez les gros boutons.`
+          : os === "android" && platform.browser !== "chrome"
+            ? "Ce navigateur ne sait pas écouter la voix. Ouvrez l'appli dans Chrome, ou utilisez les gros boutons."
+            : "Ce navigateur ne sait pas écouter la voix. Utilisez les gros boutons.",
         on: false,
         listening: false,
       };
@@ -38,7 +45,10 @@ export function describeMic(status: ListenerStatus): MicDescription {
       return {
         label: "Micro refusé",
         tone: "danger",
-        hint: "Autorisez le micro pour ce site dans les réglages du navigateur, puis touchez le badge pour réessayer. Les boutons fonctionnent sans micro.",
+        hint:
+          os === "android"
+            ? "Autorisez le micro pour cette appli : touchez le cadenas à gauche de l'adresse dans Chrome (ou, si l'appli est installée, appuyez longuement sur son icône, puis « Infos sur l'appli » > Autorisations > Micro), puis touchez le badge pour réessayer. Les boutons fonctionnent sans micro."
+            : "Autorisez le micro pour ce site dans les réglages du navigateur, puis touchez le badge pour réessayer. Les boutons fonctionnent sans micro.",
         on: false,
         listening: false,
       };
@@ -46,7 +56,10 @@ export function describeMic(status: ListenerStatus): MicDescription {
       return {
         label: "Micro indisponible",
         tone: "warn",
-        hint: "La reconnaissance vocale n'est pas disponible ici (c'est fréquent sur iPhone, surtout quand l'appli est installée sur l'écran d'accueil, ou si la dictée est désactivée dans les réglages du téléphone). Utilisez les gros boutons.",
+        hint:
+          os === "android"
+            ? "La reconnaissance vocale n'est pas disponible sur ce téléphone. Vérifiez que l'application Google (ou « Services vocaux Google ») est installée et à jour, que le français est disponible pour la dictée, puis touchez le badge pour réessayer. En attendant, utilisez les gros boutons."
+            : "La reconnaissance vocale n'est pas disponible ici (c'est fréquent sur iPhone, surtout quand l'appli est installée sur l'écran d'accueil, ou si la dictée est désactivée dans les réglages du téléphone). Utilisez les gros boutons.",
         on: false,
         listening: false,
       };
@@ -73,6 +86,39 @@ export function describeMic(status: ListenerStatus): MicDescription {
         hint: "L'écoute s'interrompt sans cesse. Touchez le badge pour réessayer, ou utilisez les gros boutons.",
         on: false,
         listening: false,
+      };
+  }
+}
+
+export interface SpeechProblemDescription {
+  /** Ce qui ne va pas, en quelques mots. */
+  title: string;
+  /** Que faire. */
+  hint: string;
+}
+
+/** Ce que l'on dit quand la voix de l'appli n'a pas pu parler, et que faire. */
+export function describeSpeechProblem(problem: SpeechProblem, platform: Platform = UNKNOWN_PLATFORM): SpeechProblemDescription {
+  switch (problem) {
+    case "no-voice":
+      return {
+        title: "Aucune voix française installée",
+        hint:
+          platform.os === "android"
+            ? "Ce téléphone n'a pas de voix française pour lire à voix haute. Dans ses réglages, cherchez « Synthèse vocale » et installez la voix française. En attendant, suivez les étapes à l'écran."
+            : platform.os === "ios"
+              ? "Dans Réglages > Accessibilité > Contenu énoncé > Voix, ajoutez une voix française. En attendant, suivez les étapes à l'écran."
+              : "Installez une voix française dans les réglages de l'appareil. En attendant, suivez les étapes à l'écran.",
+      };
+    case "network":
+      return {
+        title: "La voix a besoin d'Internet",
+        hint: "La voix choisie a besoin d'Internet. Choisissez une autre voix dans les Réglages, ou suivez les étapes à l'écran.",
+      };
+    case "failed":
+      return {
+        title: "La voix n'a pas pu parler",
+        hint: "Touchez « Répéter » pour réessayer, ou suivez les étapes à l'écran.",
       };
   }
 }

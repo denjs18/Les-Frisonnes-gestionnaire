@@ -6,7 +6,9 @@ import { useApp } from "@/components/AppProvider";
 import { Segmented, Switch } from "@/components/controls";
 import { ArrowRightIcon, PlusIcon, TrashIcon, VolumeIcon } from "@/components/icons";
 import { Banner, Button, Card, Page, ScreenHeader, Skeleton } from "@/components/ui";
+import { usePlatform } from "@/hooks/usePlatform";
 import { useRecognitionSupport, useVoice } from "@/hooks/useVoice";
+import { describeMic, describeSpeechProblem } from "@/lib/labels";
 import { DEFAULT_ALIASES, toSpoken, type Alias } from "@/lib/speech-text";
 import { RATE_MAX, RATE_MIN, type Settings } from "@/lib/state";
 import { browserStorage, clearStorage } from "@/lib/storage";
@@ -25,11 +27,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 const inputClass = "h-12 min-w-0 rounded-xl border-2 border-line bg-surface-2 px-3 text-base font-semibold";
 
+/** Le clavier d'Android met des majuscules et « corrige » les mots : ici le texte doit rester exactement tel qu'on le tape. */
+const rawText = { autoCapitalize: "off", autoCorrect: "off", spellCheck: false, autoComplete: "off" } as const;
+
 export function SettingsScreen() {
   const { state, dispatch } = useApp();
   const router = useRouter();
   const snapshot = useVoice();
   const recognition = useRecognitionSupport();
+  const platform = usePlatform();
   const [tryName, setTryName] = useState("Yaourt nature 0.5L");
   const { settings } = state;
 
@@ -116,6 +122,12 @@ export function SettingsScreen() {
           {!snapshot.ttsSupported && (
             <Banner tone="warn">Ce navigateur ne sait pas lire à voix haute : suivez les étapes à l&apos;écran.</Banner>
           )}
+          {snapshot.speechProblem && (
+            <Banner tone="warn" role="status">
+              <p className="font-bold">{describeSpeechProblem(snapshot.speechProblem, platform).title}</p>
+              <p>{describeSpeechProblem(snapshot.speechProblem, platform).hint}</p>
+            </Banner>
+          )}
         </Section>
 
         <Section title="Micro">
@@ -127,7 +139,8 @@ export function SettingsScreen() {
           />
           {recognition === false && (
             <Banner tone="warn">
-              Ce navigateur ne sait pas écouter la voix (c&apos;est fréquent sur iPhone). Les gros boutons fonctionnent normalement.
+              {describeMic("unsupported", platform).hint}
+              {platform.os === "ios" ? " C'est fréquent sur iPhone." : ""}
             </Banner>
           )}
           {recognition === true && (
@@ -194,6 +207,7 @@ export function SettingsScreen() {
                   <input
                     aria-label={`Règle ${index + 1} : texte du fichier`}
                     placeholder="Dans le fichier"
+                    {...rawText}
                     value={alias.from}
                     onChange={(event) => editAlias(index, { from: event.target.value })}
                     className={inputClass}
@@ -202,13 +216,14 @@ export function SettingsScreen() {
                   <input
                     aria-label={`Règle ${index + 1} : se prononce`}
                     placeholder="Se dit"
+                    {...rawText}
                     value={alias.to}
                     onChange={(event) => editAlias(index, { to: event.target.value })}
                     className={inputClass}
                   />
                 </div>
                 <div className="mt-2 flex gap-2">
-                  <Button variant="secondary" className="flex-1" onClick={() => speak(toSpoken(alias.from, settings.aliases))}>
+                  <Button variant="secondary" className="min-w-0 flex-1" onClick={() => speak(toSpoken(alias.from, settings.aliases))}>
                     <VolumeIcon className="text-xl" />
                     Écouter
                   </Button>
@@ -246,7 +261,13 @@ export function SettingsScreen() {
             <label htmlFor="try" className="mb-1 block text-base font-bold">
               Essayer un nom
             </label>
-            <input id="try" value={tryName} onChange={(event) => setTryName(event.target.value)} className={`${inputClass} w-full`} />
+            <input
+              id="try"
+              {...rawText}
+              value={tryName}
+              onChange={(event) => setTryName(event.target.value)}
+              className={`${inputClass} w-full`}
+            />
             <p className="mt-2 text-base">
               <span className="text-muted">Lu : </span>
               <strong data-testid="try-spoken">{toSpoken(tryName, settings.aliases) || "…"}</strong>
