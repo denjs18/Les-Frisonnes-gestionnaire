@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ButtonHTMLAttributes, ComponentProps, ReactNode } from "react";
 import { CowIcon } from "./brand/Illustrations";
-import { AlertIcon, ArrowLeftIcon, CheckIcon, HelpIcon, SettingsIcon } from "./icons";
+import { AlertIcon, ArrowLeftIcon, CheckIcon, ChevronDownIcon, HelpIcon, SettingsIcon } from "./icons";
 
 export type Variant = "primary" | "secondary" | "ghost" | "danger" | "ok" | "warn" | "accent";
 export type Size = "md" | "lg" | "xl" | "none";
@@ -42,8 +42,16 @@ export function ButtonLink({ variant, size, className, ...props }: ButtonLinkPro
   return <Link className={buttonClass(variant, size, className)} {...props} />;
 }
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-2xl border border-line bg-surface p-4 shadow-sm ${className}`}>{children}</section>;
+export function Card({
+  children,
+  className = "",
+  ...props
+}: { children: ReactNode; className?: string } & Omit<ComponentProps<"section">, "children" | "className">) {
+  return (
+    <section className={`rounded-2xl border border-line bg-surface p-4 shadow-sm ${className}`} {...props}>
+      {children}
+    </section>
+  );
 }
 
 const BANNER_TONES = {
@@ -72,6 +80,34 @@ export function Banner({
       {icon && (tone === "warn" || tone === "danger") && <AlertIcon className="mt-0.5 shrink-0 text-xl" />}
       <div className="min-w-0 flex-1">{children}</div>
     </div>
+  );
+}
+
+/**
+ * Un bandeau replié sur une seule ligne : le détail ne s'affiche qu'au toucher.
+ * Sert aux explications longues d'un écran où tout doit tenir (les gros boutons ne doivent pas être poussés hors de l'écran).
+ */
+export function FoldedBanner({
+  tone = "warn",
+  title,
+  children,
+  className = "",
+  ...props
+}: {
+  tone?: keyof typeof BANNER_TONES;
+  title: string;
+  children: ReactNode;
+  className?: string;
+} & Omit<ComponentProps<"details">, "children" | "className" | "title">) {
+  return (
+    <details className={`group rounded-2xl border-2 px-3 text-base ${BANNER_TONES[tone]} ${className}`} {...props}>
+      <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 font-bold [&::-webkit-details-marker]:hidden">
+        <AlertIcon className="shrink-0 text-xl" />
+        <span className="min-w-0 flex-1">{title}</span>
+        <ChevronDownIcon className="shrink-0 text-xl transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="pb-3">{children}</div>
+    </details>
   );
 }
 

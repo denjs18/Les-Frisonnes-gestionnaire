@@ -10,6 +10,8 @@ export interface StorageLike {
 
 export const SESSION_KEY = "prepa-commandes:v1:session";
 export const SETTINGS_KEY = "prepa-commandes:v1:settings";
+/** « 1 » quand la carte « Installer l'appli » de l'accueil a été masquée. */
+export const INSTALL_HIDDEN_KEY = "prepa-commandes:v1:install-hidden";
 
 /** `localStorage` s'il est utilisable (il peut être absent ou interdit : navigation privée, cookies bloqués…). */
 export function browserStorage(): StorageLike | null {
@@ -131,7 +133,7 @@ export const writeSettings = (storage: StorageLike | null, settings: Settings) =
 
 /** Efface toutes les données de l'appli enregistrées sur l'appareil. */
 export function clearStorage(storage: StorageLike | null): void {
-  for (const key of [SESSION_KEY, SETTINGS_KEY]) {
+  for (const key of [SESSION_KEY, SETTINGS_KEY, INSTALL_HIDDEN_KEY]) {
     try {
       storage?.removeItem(key);
     } catch {

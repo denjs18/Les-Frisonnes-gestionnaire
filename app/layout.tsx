@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { AppProvider } from "@/components/AppProvider";
+import { InstallWatcher } from "@/components/InstallWatcher";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorker";
 import "./globals.css";
 
@@ -23,6 +24,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // Android (Chrome) : quand le clavier s'ouvre, la page se réduit au lieu d'être recouverte (les fenêtres du bas restent visibles).
+  interactiveWidget: "resizes-content",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f6f3ea" },
     { media: "(prefers-color-scheme: dark)", color: "#0d130e" },
@@ -41,6 +44,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className="flex min-h-dvh flex-col">
         <script dangerouslySetInnerHTML={{ __html: APPEARANCE_SCRIPT }} />
         <AppProvider>{children}</AppProvider>
+        <InstallWatcher />
         <ServiceWorkerRegistration />
       </body>
     </html>

@@ -92,6 +92,8 @@ html[data-scale="xlarge"] {
 
 html {
   -webkit-text-size-adjust: 100%;
+  /* Android : tirer l'écran vers le bas ne doit pas recharger la page en pleine préparation. */
+  overscroll-behavior-y: none;
 }
 
 body {

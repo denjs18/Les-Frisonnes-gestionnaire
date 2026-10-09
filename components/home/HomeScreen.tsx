@@ -7,11 +7,13 @@ import { FarmScene } from "@/components/brand/Illustrations";
 import { HelpIcon, PlayIcon, TableIcon, UploadIcon } from "@/components/icons";
 import { Logo } from "@/components/Logo";
 import { Banner, Button, ButtonLink, Card, Page, ScreenHeader, Skeleton } from "@/components/ui";
+import { usePlatform } from "@/hooks/usePlatform";
 import { count } from "@/lib/format";
 import { importFile, ImportError, spreadsheetImporter } from "@/lib/import";
 import type { Session } from "@/lib/state";
 import { currentStep, type View } from "@/lib/view";
 import { voice } from "@/lib/voice/service";
+import { InstallCard } from "./InstallCard";
 
 function describe(session: Session, view: View): { title: string; detail: string } {
   const pending = view.analysis.pending.length;
@@ -33,6 +35,7 @@ function describe(session: Session, view: View): { title: string; detail: string
 export function HomeScreen() {
   const { state, view, dispatch } = useApp();
   const router = useRouter();
+  const platform = usePlatform();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -40,12 +43,17 @@ export function HomeScreen() {
 
   function chooseFile() {
     setError(null);
-    if (session && !window.confirm("Importer un nouveau fichier remplace la préparation en cours. Continuer ?")) return;
     inputRef.current?.click();
   }
 
   async function onFile(file: File | undefined) {
     if (!file) return;
+    // La confirmation vient après le choix du fichier : le sélecteur doit s'ouvrir tout de suite au toucher
+    // (le navigateur le refuse si une fenêtre de confirmation a fait attendre).
+    if (session && !window.confirm(`Importer « ${file.name} » remplace la préparation en cours. Continuer ?`)) {
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -136,7 +144,9 @@ export function HomeScreen() {
           <input
             ref={inputRef}
             type="file"
-            accept={spreadsheetImporter.accept}
+            // Android grise dans le sélecteur les fichiers dont il ne reconnaît pas le type (un .xlsx reçu par WhatsApp ou
+            // par e-mail en fait parfois partie) : on n'y filtre rien, le contenu est vérifié après le choix.
+            accept={platform.os === "android" ? undefined : spreadsheetImporter.accept}
             className="sr-only"
             tabIndex={-1}
             aria-hidden="true"
@@ -153,6 +163,8 @@ export function HomeScreen() {
             </Banner>
           )}
         </Card>
+
+        <InstallCard />
 
         <ButtonLink href="/aide" variant="secondary" size="lg">
           <HelpIcon className="text-2xl" />
