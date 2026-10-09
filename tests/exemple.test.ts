@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { analyze, newWorksheet, type Worksheet } from "@/lib/analysis";
 import { importBytes } from "@/lib/import";
 import { DEFAULT_ALIASES, stepSentence } from "@/lib/speech-text";
@@ -9,8 +9,12 @@ import type { SheetModel } from "@/lib/types";
 const FILE = new URL("../exemple/Classeur1.xlsx", import.meta.url);
 
 /** Ces tests lisent le vrai fichier d'exemple ; ils sont sautés si le fichier n'est pas dans le dépôt. */
-describe.skipIf(!existsSync(FILE))("fichier d'exemple Classeur1.xlsx", async () => {
-  const model: SheetModel = await importBytes(new Uint8Array(readFileSync(FILE)), "Classeur1.xlsx");
+describe.skipIf(!existsSync(FILE))("fichier d'exemple Classeur1.xlsx", () => {
+  // Chargé au moment où les tests tournent (et non à la lecture du fichier) : sans l'exemple, tout est simplement sauté.
+  let model: SheetModel;
+  beforeAll(async () => {
+    model = await importBytes(new Uint8Array(readFileSync(FILE)), "Classeur1.xlsx");
+  });
   const sheet = (): Worksheet => newWorksheet(model);
   const colNames = (idx: number[]) => idx.map((c) => model.columns[c].name);
   const rowNames = (idx: number[]) => idx.map((r) => model.rows[r].name);
