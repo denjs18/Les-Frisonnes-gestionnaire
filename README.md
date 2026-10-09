@@ -92,7 +92,7 @@ npm run build      # build de production
 npm run test:e2e   # tests Playwright sur 3 téléphones (après npm run build)
 ```
 
-Node 22 ou plus récent. Les tests de bout en bout utilisent de fausses API vocales ; si Playwright n'a pas son
+Node 22 (fixé dans `package.json` : c'est aussi la version utilisée par Vercel, avec laquelle tout est testé). Les tests de bout en bout utilisent de fausses API vocales ; si Playwright n'a pas son
 navigateur, indiquer celui à utiliser : `CHROMIUM_PATH=/chemin/vers/chrome npm run test:e2e`.
 
 Les tests de bout en bout jouent trois profils (voir `playwright.config.ts`) : un téléphone de 390 px (tous les tests), un

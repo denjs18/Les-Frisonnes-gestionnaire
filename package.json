@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "engines": {
-    "node": ">=22.12"
+    "node": "22.x"
   },
   "description": "Prépa Commandes : préparation de commandes de produits laitiers guidée à la voix",
   "scripts": {
