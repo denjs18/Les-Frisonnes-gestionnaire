@@ -1,4 +1,5 @@
 import { findRecognitionConstructor, Listener, type ListenerStatus } from "./listener";
+import { SENSITIVITY_PROFILES, type MicSensitivity } from "./sensitivity";
 import { Speaker, type SpeakOptions, type SpeechProblem } from "./speaker";
 
 export interface VoiceInfo {
@@ -10,6 +11,10 @@ export interface VoiceInfo {
 export interface Heard {
   text: string;
   isFinal: boolean;
+  /** Confiance du micro (0 à 1) ; null s'il ne l'indique pas. */
+  confidence: number | null;
+  /** Écarté parce que le micro n'était pas assez sûr de lui (sensibilité réduite). */
+  rejected: boolean;
 }
 
 /** Ce que l'interface a besoin de savoir sur la voix (immuable : un nouvel objet à chaque changement). */
@@ -55,8 +60,9 @@ class VoiceService {
     const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
     this.speaker = new Speaker(synth);
     this.listener = new Listener(findRecognitionConstructor(), {
-      onHeard: (text, isFinal) => this.setHeard({ text, isFinal }),
+      onHeard: (text, isFinal, confidence) => this.setHeard({ text, isFinal, confidence, rejected: false }),
       onCandidates: (candidates) => this.candidatesHandler?.(candidates),
+      onRejected: (text, confidence) => this.setHeard({ text, isFinal: true, confidence, rejected: true }),
     });
     this.snapshot = this.build();
     // L'écoute se coupe pendant que l'appli parle, pour ne pas s'écouter elle-même.
@@ -147,6 +153,10 @@ class VoiceService {
     this.candidatesHandler = handler;
   }
 
+  setSensitivity(level: MicSensitivity): void {
+    this.listener.setSensitivity(SENSITIVITY_PROFILES[level]);
+  }
+
   retryMic(): void {
     this.listener.retry();
   }
@@ -173,5 +183,6 @@ export const voice = {
   unlock: () => service()?.unlock(),
   setMicWanted: (wanted: boolean) => service()?.setMicWanted(wanted),
   setCandidatesHandler: (handler: ((candidates: string[]) => void) | null) => service()?.setCandidatesHandler(handler),
+  setSensitivity: (level: MicSensitivity) => service()?.setSensitivity(level),
   retryMic: () => service()?.retryMic(),
 };

@@ -136,6 +136,21 @@ describe("sauvegarde dans le navigateur", () => {
     expect(parsed.aliases).toEqual(DEFAULT_SETTINGS.aliases);
     expect(parsed.voiceURI).toBeNull();
   });
+
+  it("retient la sensibilité du micro, et revient à « normale » si elle est inconnue (sauvegarde d'une ancienne version comprise)", () => {
+    expect(DEFAULT_SETTINGS.micSensitivity).toBe("normal");
+    expect(parseSettings({ micSensitivity: "low" }).micSensitivity).toBe("low");
+    expect(parseSettings({ micSensitivity: "very-low" }).micSensitivity).toBe("very-low");
+    expect(parseSettings({ micSensitivity: "extreme" }).micSensitivity).toBe("normal");
+    expect(parseSettings({ micSensitivity: 3 }).micSensitivity).toBe("normal");
+    expect(parseSettings({ voiceRate: 1.2 }).micSensitivity).toBe("normal"); // réglages enregistrés avant l'existence de ce réglage
+  });
+
+  it("enregistre et relit la sensibilité du micro", () => {
+    const storage = new MemoryStorage();
+    writeSettings(storage, { ...DEFAULT_SETTINGS, micSensitivity: "very-low" });
+    expect(readSettings(storage).micSensitivity).toBe("very-low");
+  });
 });
 
 describe("magasin d'état", () => {

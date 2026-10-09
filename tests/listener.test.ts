@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SENSITIVITY_PROFILES } from "@/lib/voice/sensitivity";
 import {
   Listener,
   type ListenerHandlers,
@@ -62,10 +63,20 @@ function result(isFinal: boolean, ...alternatives: string[]): RecognitionResultL
   ) as unknown as RecognitionResultLike;
 }
 
+/** Un résultat dont chaque hypothèse a sa propre confiance : scored(true, ["suivant", 0.55], ["suivante", 0.2]). */
+function scored(isFinal: boolean, ...alternatives: [string, number][]): RecognitionResultLike {
+  return Object.assign(
+    alternatives.map(([transcript, confidence]) => ({ transcript, confidence })),
+    { isFinal },
+  ) as unknown as RecognitionResultLike;
+}
+
 const Ctor = FakeRecognition as unknown as RecognitionConstructor;
 const current = () => FakeRecognition.instances[FakeRecognition.instances.length - 1];
 
 let heard: [string, boolean][];
+let confidences: (number | null)[];
+let rejected: [string, number][];
 let candidates: string[][];
 let handlers: ListenerHandlers;
 
@@ -74,10 +85,16 @@ beforeEach(() => {
   FakeRecognition.instances = [];
   FakeRecognition.failNextStart = false;
   heard = [];
+  confidences = [];
+  rejected = [];
   candidates = [];
   handlers = {
-    onHeard: (text, isFinal) => heard.push([text, isFinal]),
+    onHeard: (text, isFinal, confidence) => {
+      heard.push([text, isFinal]);
+      confidences.push(confidence);
+    },
     onCandidates: (c) => candidates.push(c),
+    onRejected: (text, confidence) => rejected.push([text, confidence]),
   };
 });
 
@@ -189,6 +206,91 @@ describe("Listener : ce que l'on entend", () => {
     current().fireResults(0, result(true, "  "));
     expect(heard).toEqual([]);
     expect(candidates).toEqual([]);
+  });
+});
+
+describe("Listener : sensibilité du micro (bruit de fond, ventilateurs)", () => {
+  const low = SENSITIVITY_PROFILES.low;
+  const veryLow = SENSITIVITY_PROFILES["very-low"];
+
+  it("sensibilité normale : tout ce que le micro comprend est pris en compte, même sans confiance (comportement d'origine)", () => {
+    started();
+    current().fireResults(0, scored(true, ["suivant", 0.2], ["suivante", 0.1]));
+    expect(candidates).toEqual([["suivant", "suivante"]]);
+    expect(rejected).toEqual([]);
+    expect(confidences).toEqual([0.2]);
+  });
+
+  it("transmet la confiance du micro, et null quand il ne l'indique pas", () => {
+    started();
+    current().fireResults(0, scored(true, ["suivant", 0.93]));
+    current().fireResults(1, scored(true, ["suivant", 0.93]), scored(true, ["pause", 0]));
+    expect(confidences).toEqual([0.93, null]);
+  });
+
+  it("sensibilité basse : un résultat provisoire n'est ni exécuté ni affiché, même resté stable", () => {
+    const listener = started({ stableMs: 450 });
+    listener.setSensitivity(low);
+    current().fireResults(0, scored(false, ["suivant", 0]));
+    vi.advanceTimersByTime(5000);
+    expect(heard).toEqual([]);
+    expect(candidates).toEqual([]);
+  });
+
+  it("sensibilité basse : un résultat définitif sûr est exécuté, avec sa seule meilleure hypothèse", () => {
+    const listener = started();
+    listener.setSensitivity(low);
+    current().fireResults(0, scored(true, ["suivant", 0.9], ["suivante", 0.4], ["sui vent", 0.3]));
+    expect(candidates).toEqual([["suivant"]]);
+    expect(heard).toEqual([["suivant", true]]);
+    expect(rejected).toEqual([]);
+  });
+
+  it("sensibilité basse : un résultat définitif pas assez sûr est écarté, mais signalé pour l'afficher", () => {
+    const listener = started();
+    listener.setSensitivity(low);
+    current().fireResults(0, scored(true, ["suivant", 0.45]));
+    expect(candidates).toEqual([]);
+    expect(rejected).toEqual([["suivant", 0.45]]);
+    expect(heard).toEqual([["suivant", true]]); // l'écran montre quand même ce qui a été entendu
+    current().fireResults(1, scored(true, ["suivant", 0.45]), scored(true, ["pause", 0.6]));
+    expect(candidates).toEqual([["pause"]]); // 0,6 : juste assez
+  });
+
+  it("sensibilité très basse : seuil de 0,8", () => {
+    const listener = started();
+    listener.setSensitivity(veryLow);
+    current().fireResults(0, scored(true, ["pause", 0.79]));
+    expect(candidates).toEqual([]);
+    expect(rejected).toEqual([["pause", 0.79]]);
+    current().fireResults(1, scored(true, ["pause", 0.79]), scored(true, ["pause", 0.8]));
+    expect(candidates).toEqual([["pause"]]);
+  });
+
+  it("sans confiance indiquée par le micro, on ne peut pas juger : le résultat définitif est gardé", () => {
+    const listener = started();
+    listener.setSensitivity(veryLow);
+    current().fireResults(0, scored(true, ["suivant", 0]));
+    expect(candidates).toEqual([["suivant"]]);
+    expect(rejected).toEqual([]);
+  });
+
+  it("changer de sensibilité en cours d'écoute annule un résultat provisoire en attente", () => {
+    const listener = started({ stableMs: 450 });
+    current().fireResults(0, scored(false, ["suivant", 0]));
+    vi.advanceTimersByTime(200);
+    listener.setSensitivity(low);
+    vi.advanceTimersByTime(2000);
+    expect(candidates).toEqual([]);
+  });
+
+  it("revenir à la sensibilité normale rétablit le comportement d'origine", () => {
+    const listener = started({ stableMs: 450 });
+    listener.setSensitivity(veryLow);
+    listener.setSensitivity(SENSITIVITY_PROFILES.normal);
+    current().fireResults(0, scored(false, ["suivant", 0]));
+    vi.advanceTimersByTime(450);
+    expect(candidates).toEqual([["suivant"]]);
   });
 });
 

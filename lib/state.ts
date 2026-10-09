@@ -2,6 +2,7 @@ import { cellKey, newWorksheet, type Override, type Worksheet } from "./analysis
 import { DEFAULT_ALIASES, type Alias } from "./speech-text";
 import type { Position } from "./steps";
 import type { CellValue, SheetModel } from "./types";
+import type { MicSensitivity } from "./voice/sensitivity";
 
 export type Status = "verifying" | "preparing" | "done";
 
@@ -23,6 +24,8 @@ export interface Settings {
   /** Identifiant de la voix choisie, null = voix française par défaut du navigateur. */
   voiceURI: string | null;
   micEnabled: boolean;
+  /** Plus la sensibilité est basse, moins le micro réagit aux bruits de fond (voir `lib/voice/sensitivity.ts`). */
+  micSensitivity: MicSensitivity;
   textScale: TextScale;
   theme: Theme;
   ignoreStar: boolean;
@@ -37,6 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceRate: 1,
   voiceURI: null,
   micEnabled: true,
+  micSensitivity: "normal",
   textScale: "normal",
   theme: "auto",
   ignoreStar: true,

@@ -8,10 +8,11 @@ import { ArrowRightIcon, PlusIcon, TrashIcon, VolumeIcon } from "@/components/ic
 import { Banner, Button, Card, Page, ScreenHeader, Skeleton } from "@/components/ui";
 import { usePlatform } from "@/hooks/usePlatform";
 import { useRecognitionSupport, useVoice } from "@/hooks/useVoice";
-import { describeMic, describeSpeechProblem } from "@/lib/labels";
+import { describeMic, describeSpeechProblem, SENSITIVITY_TEXT } from "@/lib/labels";
 import { DEFAULT_ALIASES, toSpoken, type Alias } from "@/lib/speech-text";
 import { RATE_MAX, RATE_MIN, type Settings } from "@/lib/state";
 import { browserStorage, clearStorage } from "@/lib/storage";
+import { MIC_SENSITIVITIES } from "@/lib/voice/sensitivity";
 import { voice } from "@/lib/voice/service";
 
 const SAMPLE = "38 yaourt nature 0,5 litre. 4 pour Nature Champs.";
@@ -142,6 +143,20 @@ export function SettingsScreen() {
               {describeMic("unsupported", platform).hint}
               {platform.os === "ios" ? " C'est fréquent sur iPhone." : ""}
             </Banner>
+          )}
+          {recognition !== false && (
+            <div>
+              <p className="mb-2 text-base font-bold">Sensibilité du micro</p>
+              <Segmented
+                label="Sensibilité du micro"
+                value={settings.micSensitivity}
+                onChange={(micSensitivity) => update({ micSensitivity })}
+                options={MIC_SENSITIVITIES.map((level) => ({ value: level, label: SENSITIVITY_TEXT[level].label }))}
+              />
+              <p className="mt-2 text-sm text-muted" data-testid="settings-sensitivity-hint">
+                {SENSITIVITY_TEXT[settings.micSensitivity].hint} Réglable aussi pendant la préparation, avec un essai en direct.
+              </p>
+            </div>
           )}
           {recognition === true && (
             <p className="text-sm text-muted">

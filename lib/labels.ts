@@ -3,6 +3,7 @@ import { UNKNOWN_PLATFORM, type Platform } from "./platform";
 import { MAX_QUANTITY, type CellIssue, type ColumnReason, type RowReason } from "./rules";
 import type { CellValue } from "./types";
 import type { ListenerStatus } from "./voice/listener";
+import type { MicSensitivity } from "./voice/sensitivity";
 import type { SpeechProblem } from "./voice/speaker";
 
 export type MicTone = "ok" | "muted" | "warn" | "danger";
@@ -89,6 +90,22 @@ export function describeMic(status: ListenerStatus, platform: Platform = UNKNOWN
       };
   }
 }
+
+/** Les trois niveaux de sensibilité du micro, tels qu'on les présente. */
+export const SENSITIVITY_TEXT: Record<MicSensitivity, { label: string; hint: string }> = {
+  normal: {
+    label: "Normale",
+    hint: "Le micro prend en compte tout ce qu'il comprend. À choisir dans un endroit calme.",
+  },
+  low: {
+    label: "Basse",
+    hint: "Moins de fausses commandes dues aux bruits de fond (ventilateurs, conversations) : l'appli ignore ce que le micro entend mal, et les variantes comme « stop » ou « retour ». Parlez un peu plus près et nettement ; elle réagit un peu moins vite.",
+  },
+  "very-low": {
+    label: "Très basse",
+    hint: "Pour un endroit très bruyant : seules les commandes dites très nettement sont prises en compte. Parlez tout près du téléphone.",
+  },
+};
 
 export interface SpeechProblemDescription {
   /** Ce qui ne va pas, en quelques mots. */

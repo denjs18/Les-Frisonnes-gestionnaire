@@ -1,5 +1,6 @@
 import { clampRate, DEFAULT_SETTINGS, type Session, type Settings } from "./state";
 import type { Alias } from "./speech-text";
+import { MIC_SENSITIVITIES, type MicSensitivity } from "./voice/sensitivity";
 
 /** Le strict nécessaire de `localStorage`, pour pouvoir le remplacer dans les tests. */
 export interface StorageLike {
@@ -96,6 +97,9 @@ export function parseSettings(value: unknown): Settings {
     voiceRate: typeof value.voiceRate === "number" ? clampRate(value.voiceRate) : d.voiceRate,
     voiceURI: typeof value.voiceURI === "string" ? value.voiceURI : null,
     micEnabled: bool(value.micEnabled, d.micEnabled),
+    micSensitivity: MIC_SENSITIVITIES.includes(value.micSensitivity as MicSensitivity)
+      ? (value.micSensitivity as MicSensitivity)
+      : d.micSensitivity,
     textScale: ["normal", "large", "xlarge"].includes(value.textScale as string)
       ? (value.textScale as Settings["textScale"])
       : d.textScale,

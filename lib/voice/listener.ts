@@ -1,4 +1,5 @@
 import { normalizeKey } from "../text";
+import { SENSITIVITY_PROFILES, type SensitivityProfile } from "./sensitivity";
 
 /** Le strict nécessaire de `SpeechRecognition`, pour pouvoir le remplacer dans les tests. */
 export interface RecognitionAlternative {
@@ -56,10 +57,12 @@ export type ListenerStatus =
   | "error"; // micro instable : on arrête d'insister
 
 export interface ListenerHandlers {
-  /** Texte entendu, à afficher à l'écran (meilleure hypothèse). */
-  onHeard(text: string, isFinal: boolean): void;
+  /** Texte entendu, à afficher à l'écran (meilleure hypothèse) ; `confidence` : 0 à 1, null si le micro ne l'indique pas. */
+  onHeard(text: string, isFinal: boolean, confidence: number | null): void;
   /** Hypothèses à interpréter : un résultat final, ou un résultat provisoire resté inchangé. */
   onCandidates(candidates: string[]): void;
+  /** Un résultat final écarté parce que le micro n'était pas assez sûr de lui (sensibilité réduite). */
+  onRejected?(text: string, confidence: number): void;
 }
 
 export interface ListenerOptions {
@@ -72,6 +75,12 @@ export interface ListenerOptions {
   maxQuickEnds?: number;
   /** Un résultat final identique à un provisoire déjà traité, arrivé dans ce délai, est le même énoncé : on ne le traite pas deux fois. */
   echoMs?: number;
+}
+
+/** La confiance du micro dans sa meilleure hypothèse (0 à 1) ; null quand il ne l'indique pas (0, absente ou invalide). */
+function confidenceOf(result: RecognitionResultLike): number | null {
+  const confidence = result[0]?.confidence;
+  return typeof confidence === "number" && confidence > 0 && confidence <= 1 ? confidence : null;
 }
 
 type Timer = ReturnType<typeof setTimeout>;
@@ -96,6 +105,7 @@ export class Listener {
   private stableTimer: Timer | null = null;
   /** Dernier résultat provisoire traité parce qu'il était resté stable ; son résultat final, quand il arrive, n'est qu'un écho. */
   private promoted: { key: string; at: number } | null = null;
+  private profile: SensitivityProfile = SENSITIVITY_PROFILES.normal;
   private lastStatus: ListenerStatus;
   private readonly subscribers = new Set<(status: ListenerStatus) => void>();
   private readonly lang: string;
@@ -130,6 +140,12 @@ export class Listener {
 
   setHandlers(handlers: ListenerHandlers): void {
     this.handlers = handlers;
+  }
+
+  /** Règle l'exigence de l'appli envers ce que le micro entend (voir `lib/voice/sensitivity.ts`). Effet immédiat. */
+  setSensitivity(profile: SensitivityProfile): void {
+    this.profile = profile;
+    if (profile.finalOnly) this.clearStable(); // un provisoire en attente ne sera plus exécuté
   }
 
   /** Le micro est-il souhaité ? (réglage activé, écran visible…). Un changement relance une tentative propre. */
@@ -281,12 +297,20 @@ export class Listener {
         if (text !== "") texts.push(text);
       }
       if (texts.length === 0) continue;
-      this.handlers.onHeard(texts[0], result.isFinal);
+      // Sensibilité réduite : seuls les résultats définitifs comptent (un résultat provisoire n'est même pas affiché : le bruit le fait clignoter).
+      if (!result.isFinal && this.profile.finalOnly) continue;
+      const confidence = confidenceOf(result);
+      this.handlers.onHeard(texts[0], result.isFinal, confidence);
       if (result.isFinal) {
         this.clearStable();
         const echo = this.isEchoOfPromoted(texts[0]);
         this.promoted = null;
-        if (!echo) this.handlers.onCandidates(texts);
+        if (echo) continue;
+        if (confidence !== null && confidence < this.profile.minConfidence) {
+          this.handlers.onRejected?.(texts[0], confidence);
+          continue;
+        }
+        this.handlers.onCandidates(this.profile.bestOnly ? [texts[0]] : texts);
       } else if (i === last) {
         this.armStable(texts);
       }
