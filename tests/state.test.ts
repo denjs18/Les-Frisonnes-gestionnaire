@@ -134,6 +134,16 @@ describe("état de l'appli", () => {
     });
   });
 
+  it("resetAll : efface la session et rétablit tous les réglages", () => {
+    const customised = apply(
+      loaded(),
+      { type: "updateSettings", patch: { theme: "dark", ignoreStar: false, aliases: [] } },
+      { type: "start" },
+    );
+    const reset = reduce(customised, { type: "resetAll" });
+    expect(reset).toEqual({ loaded: true, session: null, settings: DEFAULT_SETTINGS });
+  });
+
   it("réglages : rétablit les alias par défaut", () => {
     const edited = reduce(loaded(), { type: "updateSettings", patch: { aliases: [{ from: "x", to: "y" }] } });
     expect(edited.settings.aliases).toHaveLength(1);

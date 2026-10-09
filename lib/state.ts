@@ -66,7 +66,8 @@ export type Action =
   | { type: "finish" }
   | { type: "clearSession" }
   | { type: "updateSettings"; patch: Partial<Settings> }
-  | { type: "resetAliases" };
+  | { type: "resetAliases" }
+  | { type: "resetAll" };
 
 export function clampRate(rate: number): number {
   if (!Number.isFinite(rate)) return DEFAULT_SETTINGS.voiceRate;
@@ -145,5 +146,8 @@ export function reduce(state: AppState, action: Action): AppState {
 
     case "resetAliases":
       return { ...state, settings: { ...state.settings, aliases: DEFAULT_ALIASES } };
+
+    case "resetAll":
+      return { loaded: true, session: null, settings: DEFAULT_SETTINGS };
   }
 }
