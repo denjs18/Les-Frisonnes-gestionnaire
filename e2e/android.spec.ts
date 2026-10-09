@@ -454,6 +454,8 @@ test.describe("texte agrandi par les réglages d'Android", () => {
         ["le bouton Répéter", page.getByRole("button", { name: /Répéter/ })],
         ["le bouton Pause", page.getByRole("button", { name: /Pause/ })],
         ["le badge du micro", page.getByTestId("mic-badge")],
+        ["le bouton de sensibilité du micro", page.getByTestId("sensitivity-button")],
+        ["le bouton « Aller à… »", page.getByTestId("progress").getByRole("button")],
       ] as const) {
         const box = (await target.boundingBox())!;
         expect(box.x, `${name} dépasse à gauche`).toBeGreaterThanOrEqual(0);
@@ -463,6 +465,23 @@ test.describe("texte agrandi par les réglages d'Android", () => {
       await page.getByRole("button", { name: /Suivant/ }).click();
       await expect(page.getByTestId("progress")).toContainText("Étape 2/");
       await shot(page, `37-android-police-${percent}`);
+
+      // Les fenêtres de l'écran de préparation, à ce niveau de texte : rien ne déborde sur les côtés.
+      for (const [name, open, title] of [
+        ["« Aller à… »", () => page.getByTestId("progress").getByRole("button").click(), "Aller à…"],
+        ["la sensibilité du micro", () => page.getByTestId("sensitivity-button").click(), "Sensibilité du micro"],
+      ] as const) {
+        await open();
+        const dialog = page.getByRole("dialog", { name: title });
+        await expect(dialog).toBeVisible();
+        expect(await sideOverflow(page), name).toBeLessThanOrEqual(0);
+        const frame = (await dialog.locator("> div").boundingBox())!;
+        expect(frame.x, `${name} dépasse à gauche`).toBeGreaterThanOrEqual(0);
+        expect(frame.x + frame.width, `${name} dépasse à droite`).toBeLessThanOrEqual(width);
+        expect(frame.y, `${name} dépasse en haut`).toBeGreaterThanOrEqual(0);
+        await page.getByRole("button", { name: "Fermer" }).click();
+        await expect(dialog).toHaveCount(0);
+      }
 
       await page.getByRole("link", { name: "Réglages" }).click();
       await expect(page.getByRole("heading", { name: "Voix" })).toBeVisible();

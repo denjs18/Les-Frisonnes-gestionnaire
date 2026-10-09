@@ -44,6 +44,12 @@ test.describe("la préparation tient à l'écran, sans défiler", () => {
         await expectInsideViewport(page, `le bouton ${name}`, page.getByRole("button", { name }) as never, screen.height);
       }
       await expectInsideViewport(page, "l'indicateur du micro", page.getByTestId("mic-badge"), screen.height);
+      await expectInsideViewport(page, "le bouton de sensibilité du micro", page.getByTestId("sensitivity-button"), screen.height);
+      const goTo = page.getByTestId("progress").getByRole("button");
+      await expectInsideViewport(page, "le bouton « Aller à… »", goTo as never, screen.height);
+      const goToBox = (await goTo.boundingBox())!;
+      expect(goToBox.x, "« Aller à… » dépasse à gauche").toBeGreaterThanOrEqual(0);
+      expect(goToBox.x + goToBox.width, "« Aller à… » dépasse à droite").toBeLessThanOrEqual(screen.width);
 
       // Aucun défilement de la page elle-même
       expect(await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(1);

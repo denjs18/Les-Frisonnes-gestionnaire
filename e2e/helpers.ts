@@ -31,7 +31,7 @@ declare global {
     __recStarts: number;
     /** Code d'erreur que la fausse reconnaissance vocale renvoie à chaque démarrage (null : elle démarre normalement). */
     __recError: string | null;
-    __say: (text: string, isFinal?: boolean) => boolean;
+    __say: (text: string, isFinal?: boolean, confidence?: number) => boolean;
   }
 }
 
@@ -99,10 +99,10 @@ export async function installFakeVoice(page: Page, options: { recognition?: bool
       }
       Object.defineProperty(window, "webkitSpeechRecognition", { value: Recognition, configurable: true });
       Object.defineProperty(window, "SpeechRecognition", { value: Recognition, configurable: true });
-      w.__say = (text: string, isFinal = true) => {
+      w.__say = (text: string, isFinal = true, confidence = 0.9) => {
         const rec = w.__rec as { onresult: ((event: unknown) => void) | null } | null;
         if (!rec?.onresult) return false;
-        const result = Object.assign([{ transcript: text, confidence: 0.9 }], { isFinal });
+        const result = Object.assign([{ transcript: text, confidence }], { isFinal });
         rec.onresult({ resultIndex: 0, results: [result] });
         return true;
       };
@@ -132,10 +132,13 @@ export async function expectLastSpoken(page: Page, text: string) {
   await expect.poll(async () => (await spoken(page)).at(-1)).toBe(text);
 }
 
-/** Fait comme si l'utilisateur avait prononcé ce texte (attend que le micro soit prêt). */
-export async function say(page: Page, text: string, isFinal = true) {
+/**
+ * Fait comme si l'utilisateur avait prononcé ce texte (attend que le micro soit prêt).
+ * `confidence` : la certitude du micro (0 à 1) ; `isFinal` faux = résultat provisoire.
+ */
+export async function say(page: Page, text: string, isFinal = true, confidence = 0.9) {
   await page.waitForFunction(() => Boolean(window.__rec));
-  await page.evaluate(([t, f]) => window.__say(t as string, f as boolean), [text, isFinal] as const);
+  await page.evaluate(([t, f, c]) => window.__say(t as string, f as boolean, c as number), [text, isFinal, confidence] as const);
 }
 
 /** Enregistre une capture d'écran quand SHOTS_DIR est défini (pour regarder le rendu). */
