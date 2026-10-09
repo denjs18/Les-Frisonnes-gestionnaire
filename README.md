@@ -11,7 +11,8 @@ dans le navigateur (`localStorage`) pour pouvoir être reprise.
 
 ## Fonctionnement
 
-1. **Accueil** : importer le fichier `.xlsx` ou `.csv`, ou reprendre la préparation en cours.
+1. **Accueil** : importer le fichier `.xlsx` ou `.csv`, ou reprendre la préparation en cours. Un bouton
+   « Installer l'application » (Android) ou les étapes pour l'ajouter à l'écran d'accueil sont proposés.
 2. **Vérification** : le tableau est modifiable (boutons +/- ou saisie). Les valeurs douteuses sont en **orange** ;
    le bouton « Tout est correct, commencer » reste grisé tant qu'il en reste.
 3. **Préparation** : « Produit 3/15 · Étape 4/10 », la quantité en très grand, le client, un mini-tableau
@@ -36,6 +37,26 @@ dans le navigateur (`localStorage`) pour pouvoir être reprise.
 Seuls ces mots **exacts** sont pris en compte (une phrase qui les contient ne déclenche rien) et une commande
 répétée aussitôt est ignorée. Le texte entendu est affiché à l'écran.
 
+## Android et iPhone
+
+L'appli est pensée pour les deux ; **Chrome sur Android est le meilleur cas** (c'est lui qui fournit la reconnaissance vocale).
+
+- **Installation** : sur Android, Chrome propose l'installation et l'accueil affiche un gros bouton « Installer l'application »
+  (sinon les étapes du menu, adaptées à Chrome, Samsung Internet ou Firefox). Sur iPhone, les étapes de Safari sont affichées.
+  Dans le navigateur intégré d'une autre appli (Facebook, Messenger…), l'accueil conseille d'ouvrir l'adresse dans Chrome ou Safari.
+- **Choix du fichier** : sur Android, le sélecteur n'est pas filtré par type (il grise sinon certains `.xlsx` reçus par WhatsApp ou
+  par e-mail) ; le contenu est vérifié après le choix, avec un message clair pour un PDF ou une photo.
+- **Clavier** : la page se réduit quand le clavier s'ouvre (`interactive-widget=resizes-content`), les fenêtres du bas restent visibles,
+  et la touche « OK » du clavier numérique range le clavier.
+- **Bouton Retour d'Android** : en pleine préparation, il ramène au tableau, où « Reprendre la préparation en cours » est le gros
+  bouton ; « Recommencer depuis le début » demande confirmation. Tirer l'écran vers le bas ne recharge pas la page.
+- **Voix** : si le téléphone n'a pas de voix française, ou si la reconnaissance vocale est indisponible (application Google absente,
+  micro refusé…), l'écran de préparation l'explique sur une ligne dépliable, sans pousser les gros boutons hors de l'écran.
+  Un résultat final qui n'est que l'écho d'une commande déjà exécutée n'est pas exécuté deux fois.
+- **Texte très agrandi** par les réglages du téléphone : les gros boutons se réduisent à la largeur de l'écran au lieu de déborder.
+
+Il faut un navigateur récent : Chrome 111 ou plus sur Android, Safari 16.4 ou plus sur iPhone.
+
 ## Identité visuelle
 
 Le style reprend le logo de la Fromagerie des Frisonnes : trait noir fin, vert du trèfle (`#48a858`, assombri en
@@ -53,6 +74,8 @@ pause, titres en serif comme le lettrage du logo (aucune police à télécharger
 
 - **La reconnaissance vocale est moins fiable dans un endroit bruyant**, et sur **iPhone** elle est souvent
   indisponible (surtout quand l'appli est installée sur l'écran d'accueil). Les gros boutons fonctionnent toujours.
+- Sur **Android**, selon le téléphone, un petit « bip » peut accompagner la remise en route de l'écoute ; Firefox, Samsung Internet
+  et les navigateurs intégrés aux applis n'offrent pas (ou mal) la reconnaissance vocale : utiliser Chrome.
 - Sur Chrome, l'écoute envoie le son à Google pour le transcrire : elle a besoin d'Internet (les boutons, non).
 - Le micro se coupe quelques instants pendant que l'appli parle, pour ne pas s'écouter elle-même.
 - L'appli s'ouvre hors connexion une fois chargée une première fois (la voix qui parle marche sans Internet si
@@ -66,21 +89,27 @@ npm run dev        # http://localhost:3000
 npm test           # tests unitaires (Vitest)
 npm run lint
 npm run build      # build de production
-npm run test:e2e   # tests Playwright en format téléphone (après npm run build)
+npm run test:e2e   # tests Playwright sur 3 téléphones (après npm run build)
 ```
 
 Node 22 ou plus récent. Les tests de bout en bout utilisent de fausses API vocales ; si Playwright n'a pas son
 navigateur, indiquer celui à utiliser : `CHROMIUM_PATH=/chemin/vers/chrome npm run test:e2e`.
 
+Les tests de bout en bout jouent trois profils (voir `playwright.config.ts`) : un téléphone de 390 px (tous les tests), un
+**Pixel 7** (Chrome sur Android : le parcours complet et `e2e/android.spec.ts`) et un **Android d'entrée de gamme** de 360 × 640. Ils
+vérifient notamment, avec les contrôles de Chrome (`Page.getInstallabilityErrors`), que rien n'empêche l'installation. Ce qu'un
+ordinateur ne peut pas jouer reste à essayer sur un vrai téléphone : la reconnaissance vocale de Google, les voix installées, le
+sélecteur de fichiers d'Android et l'installation elle-même.
+
 ### Organisation
 
 | Dossier | Contenu |
 | --- | --- |
-| `lib/` | Toute la logique, sans interface : lecture du fichier, règles d'exclusion, valeurs douteuses, étapes, texte parlé, commandes vocales, sauvegarde, écoute et parole |
+| `lib/` | Toute la logique, sans interface : lecture du fichier, règles d'exclusion, valeurs douteuses, étapes, texte parlé, commandes vocales, sauvegarde, écoute et parole, détection du téléphone (`platform.ts`), installation (`install.ts`) |
 | `lib/import/` | Les **importeurs** (fichier Excel/CSV). Tous produisent un `RawGrid` : le reste de l'appli n'en dépend pas |
 | `app/`, `components/`, `hooks/` | Les écrans (une adresse par écran) et la voix côté interface ; `components/brand/` : logo et dessins |
 | `tests/` | Tests unitaires (dont `exemple.test.ts`, qui lit `exemple/Classeur1.xlsx`) |
-| `e2e/` | Tests Playwright (390 px, voix simulée, hors connexion) |
+| `e2e/` | Tests Playwright (390 px, profils Android, voix simulée, hors connexion) |
 | `vendor/` | SheetJS 0.20.3 (la version publiée sur npm est ancienne et vulnérable) |
 
 ## Déploiement (Vercel)

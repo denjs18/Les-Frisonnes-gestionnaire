@@ -111,13 +111,17 @@ export default function HelpPage() {
             <ol className="list-decimal space-y-1 pl-5">
               <li>Ouvrez l&apos;adresse de l&apos;appli dans Chrome.</li>
               <li>
-                Touchez le menu <strong>⋮</strong> (trois points, en haut à droite).
+                Sur l&apos;écran d&apos;accueil de l&apos;appli, touchez <strong>« Installer l&apos;application »</strong> s&apos;il est
+                proposé. Sinon, touchez le menu <strong>⋮</strong> (trois points, en haut à droite).
               </li>
               <li>
                 Touchez <strong>« Installer l&apos;application »</strong> (ou « Ajouter à l&apos;écran d&apos;accueil »), puis{" "}
-                <strong>Installer</strong>.
+                <strong>Installer</strong>. L&apos;icône apparaît parmi vos applis.
               </li>
             </ol>
+            <p className="mt-2 text-sm text-muted">
+              Samsung Internet : menu ☰, puis « Ajouter la page à » et « Écran d&apos;accueil ». Firefox : menu ⋮, puis « Installer ».
+            </p>
           </div>
           <div>
             <p className="font-bold">iPhone (Safari)</p>
@@ -133,6 +137,37 @@ export default function HelpPage() {
           </div>
         </Section>
 
+        <Section title="Sur Android">
+          <ul className="list-disc space-y-2 pl-5">
+            <li>
+              <strong>Utilisez Chrome</strong> : c&apos;est le navigateur qui écoute le mieux. Si l&apos;adresse s&apos;ouvre dans Facebook,
+              Messenger ou Instagram, ouvrez-la plutôt dans Chrome (menu ⋮, puis « Ouvrir dans Chrome » ou « Ouvrir dans le
+              navigateur »).
+            </li>
+            <li>
+              <strong>Micro</strong> : au premier lancement, Android demande l&apos;autorisation : touchez « Autoriser ». Si vous avez
+              refusé, touchez le cadenas à gauche de l&apos;adresse dans Chrome ; dans l&apos;appli installée, appuyez longuement sur son
+              icône, puis « Infos sur l&apos;appli » &gt; Autorisations &gt; Micro.
+            </li>
+            <li>
+              <strong>Voix</strong> : le téléphone doit avoir une voix française. Sinon, cherchez « Synthèse vocale » dans ses réglages et
+              installez-la. L&apos;appli le signale à l&apos;écran quand elle ne peut pas parler.
+            </li>
+            <li>
+              <strong>Le fichier</strong> : touchez « Importer un fichier », puis cherchez-le dans « Récents » ou « Téléchargements ». Un
+              tableau Google Sheets doit d&apos;abord être téléchargé : Fichier &gt; Télécharger &gt; Microsoft Excel (.xlsx).
+            </li>
+            <li>
+              <strong>Bouton Retour</strong> : il revient à l&apos;écran précédent. Pendant une préparation, il ramène au tableau, où
+              « Reprendre la préparation en cours » vous remet exactement à l&apos;endroit où vous étiez.
+            </li>
+            <li>
+              <strong>Petit bip</strong> : selon le téléphone, un bip peut accompagner la remise en route de l&apos;écoute. C&apos;est le
+              téléphone qui le fait ; vous pouvez couper le micro dans les Réglages et n&apos;utiliser que les gros boutons.
+            </li>
+          </ul>
+        </Section>
+
         <Section title="Limites à connaître">
           <ul className="list-disc space-y-1 pl-5">
             <li>
@@ -145,6 +180,7 @@ export default function HelpPage() {
               eux, non.
             </li>
             <li>La voix qui parle, elle, fonctionne sans Internet si une voix française est installée sur l&apos;appareil.</li>
+            <li>Il faut un navigateur récent : Chrome 111 ou plus pour Android (Play Store), Safari 16.4 ou plus pour iPhone.</li>
             <li>Tout est enregistré uniquement sur cet appareil. Changer de téléphone demande de réimporter le fichier.</li>
           </ul>
         </Section>
