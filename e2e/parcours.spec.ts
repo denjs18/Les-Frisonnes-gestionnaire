@@ -395,6 +395,13 @@ test.describe("réglages et aide", () => {
     await expect(page.getByText("Préparation en cours")).toHaveCount(0);
   });
 
+  test("une adresse inconnue affiche une page d'erreur en français", async ({ page }) => {
+    await page.goto("/nimporte-quoi");
+    await expect(page.getByText("Cette page n'existe pas.")).toBeVisible();
+    await page.getByRole("link", { name: "Retour à l'accueil" }).click();
+    await expect(page.getByRole("heading", { name: "Commencer" })).toBeVisible();
+  });
+
   test("la page d'aide explique les règles et l'installation", async ({ page }) => {
     await page.goto("/aide");
     await expect(page.getByRole("heading", { name: "Installer sur l'écran d'accueil" })).toBeVisible();

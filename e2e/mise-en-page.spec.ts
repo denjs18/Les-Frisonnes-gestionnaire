@@ -67,3 +67,27 @@ test.describe("la préparation tient à l'écran, sans défiler", () => {
     expect(current.x + current.width).toBeLessThanOrEqual(frame.x + frame.width + 1);
   });
 });
+
+test.describe("texte agrandi dans les réglages", () => {
+  for (const textScale of ["large", "xlarge"]) {
+    test(`taille « ${textScale} » : quantité et gros boutons restent visibles sur 390×844`, async ({ page }) => {
+      await page.addInitScript((scale) => {
+        localStorage.setItem("prepa-commandes:v1:settings", JSON.stringify({ textScale: scale }));
+      }, textScale);
+      await installFakeVoice(page);
+      await importCsv(page, bigCsv());
+      await page.getByRole("button", { name: "Tout est correct, commencer" }).click();
+      await page.getByRole("button", { name: /Suivant/ }).click();
+      await expect(page.locator("html")).toHaveAttribute("data-scale", textScale);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      for (const target of [page.getByTestId("quantity"), page.getByTestId("client"), page.getByTestId("mic-badge")]) {
+        await expectInsideViewport(page, "un élément essentiel", target, 844);
+      }
+      for (const name of [/Suivant/, /Précédent/, /Répéter/, /Pause/]) {
+        await expectInsideViewport(page, `le bouton ${name}`, page.getByRole("button", { name }) as never, 844);
+      }
+      await shot(page, `21-prep-texte-${textScale}`);
+    });
+  }
+});
+
