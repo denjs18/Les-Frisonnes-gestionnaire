@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ButtonHTMLAttributes, ComponentProps, ReactNode } from "react";
-import { AlertIcon, ArrowLeftIcon, HelpIcon, SettingsIcon } from "./icons";
+import { AlertIcon, ArrowLeftIcon, CheckIcon, HelpIcon, SettingsIcon } from "./icons";
 
 export type Variant = "primary" | "secondary" | "ghost" | "danger" | "ok" | "warn";
 export type Size = "md" | "lg" | "xl" | "none";
@@ -65,7 +65,9 @@ export function Banner({
 } & Omit<ComponentProps<"div">, "children" | "className">) {
   return (
     <div className={`flex items-start gap-3 rounded-2xl border-2 p-3 text-base ${BANNER_TONES[tone]} ${className}`} {...props}>
-      {icon && <AlertIcon className="mt-0.5 shrink-0 text-xl" />}
+      {icon && tone === "ok" && <CheckIcon className="mt-0.5 shrink-0 text-xl" />}
+      {icon && tone === "info" && <HelpIcon className="mt-0.5 shrink-0 text-xl" />}
+      {icon && (tone === "warn" || tone === "danger") && <AlertIcon className="mt-0.5 shrink-0 text-xl" />}
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );

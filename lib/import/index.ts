@@ -7,6 +7,8 @@ import { xlsxToGrid } from "./xlsx";
 export { ImportError, type TableImporter } from "./types";
 
 const MAX_BYTES = 8 * 1024 * 1024;
+/** Au-delà (plusieurs centaines de lignes par plusieurs dizaines de colonnes), l'affichage du tableau deviendrait trop lent. */
+const MAX_CELLS = 40_000;
 const SPREADSHEET_EXTENSIONS = ["xlsx", "xlsm", "xls", "ods"];
 
 function extensionOf(fileName: string): string {
@@ -38,6 +40,12 @@ export async function importBytes(bytes: Uint8Array, fileName: string): Promise<
     throw new ImportError(
       "Je n'ai trouvé ni produits ni clients. La ligne 1 doit contenir les noms des produits " +
         "et la colonne A les noms des clients.",
+    );
+  }
+  if (model.rows.length * model.columns.length > MAX_CELLS) {
+    throw new ImportError(
+      `Ce tableau est beaucoup trop grand (${model.rows.length} lignes × ${model.columns.length} colonnes). ` +
+        "Gardez seulement les clients et les produits de la semaine.",
     );
   }
   return model;

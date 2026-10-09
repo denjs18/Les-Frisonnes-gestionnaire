@@ -135,6 +135,12 @@ describe("erreurs d'import lisibles", () => {
     await expect(importBytes(new Uint8Array(9 * 1024 * 1024), "gros.csv")).rejects.toThrow(/trop gros/);
   });
 
+  it("refuse un tableau démesuré plutôt que de geler l'affichage", async () => {
+    const wide = ["Nom", ...Array.from({ length: 150 }, (_, i) => `P${i}`)].join(";");
+    const rows = Array.from({ length: 300 }, (_, r) => [`C${r}`, ...Array.from({ length: 150 }, () => "1")].join(";"));
+    await expect(importBytes(utf8([wide, ...rows].join("\n")), "enorme.csv")).rejects.toThrow(/beaucoup trop grand/);
+  });
+
   it("refuse un faux fichier Excel", async () => {
     const fake = Uint8Array.from([0x50, 0x4b, 0x00, 0x00, 1, 2, 3, 4]);
     await expect(importBytes(fake, "faux.xlsx")).rejects.toThrow(ImportError);
