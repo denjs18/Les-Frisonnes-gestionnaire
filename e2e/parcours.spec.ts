@@ -166,6 +166,9 @@ test.describe("sans reconnaissance vocale (iPhone, Firefox…)", () => {
     await importCsv(page);
     await page.getByRole("button", { name: "Tout est correct, commencer" }).click();
     await expect(page.getByTestId("mic-badge")).toContainText("Micro indisponible");
+    // L'explication est repliée sur une ligne, pour que les gros boutons restent à l'écran.
+    await expect(page.getByText("Ce navigateur ne sait pas écouter la voix")).toBeHidden();
+    await page.getByText("Micro : que faire ?").click();
     await expect(page.getByText("Ce navigateur ne sait pas écouter la voix")).toBeVisible();
     await shot(page, "07-sans-micro");
     await page.getByRole("button", { name: /Suivant/ }).click();

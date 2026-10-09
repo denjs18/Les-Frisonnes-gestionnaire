@@ -29,6 +29,8 @@ declare global {
     __spoken: string[];
     __rec: unknown;
     __recStarts: number;
+    /** Code d'erreur que la fausse reconnaissance vocale renvoie à chaque démarrage (null : elle démarre normalement). */
+    __recError: string | null;
     __say: (text: string, isFinal?: boolean) => boolean;
   }
 }
@@ -38,11 +40,12 @@ declare global {
  * - window.__spoken liste tout ce que l'appli a « dit » ;
  * - window.__say("suivant") fait comme si l'utilisateur l'avait prononcé.
  */
-export async function installFakeVoice(page: Page, options: { recognition?: boolean } = {}) {
-  await page.addInitScript((withRecognition: boolean) => {
+export async function installFakeVoice(page: Page, options: { recognition?: boolean; recognitionError?: string } = {}) {
+  await page.addInitScript(([withRecognition, recognitionError]: [boolean, string | null]) => {
     const w = window as unknown as Record<string, unknown> & Window;
     w.__spoken = [];
     w.__recStarts = 0;
+    w.__recError = recognitionError;
 
     class Utterance {
       text: string;
@@ -87,7 +90,7 @@ export async function installFakeVoice(page: Page, options: { recognition?: bool
         start() {
           w.__rec = this;
           w.__recStarts += 1;
-          setTimeout(() => this.onstart?.(), 0);
+          setTimeout(() => (w.__recError ? this.onerror?.({ error: w.__recError }) : this.onstart?.()), 0);
         }
         stop() {}
         abort() {
@@ -107,7 +110,7 @@ export async function installFakeVoice(page: Page, options: { recognition?: bool
       Object.defineProperty(window, "webkitSpeechRecognition", { value: undefined, configurable: true });
       Object.defineProperty(window, "SpeechRecognition", { value: undefined, configurable: true });
     }
-  }, options.recognition ?? true);
+  }, [options.recognition ?? true, options.recognitionError ?? null] as [boolean, string | null]);
 }
 
 /** Importe un fichier depuis l'accueil et attend l'écran de vérification. */
