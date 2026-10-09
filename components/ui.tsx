@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { ButtonHTMLAttributes, ComponentProps, ReactNode } from "react";
+import { CowIcon } from "./brand/Illustrations";
 import { AlertIcon, ArrowLeftIcon, CheckIcon, HelpIcon, SettingsIcon } from "./icons";
 
-export type Variant = "primary" | "secondary" | "ghost" | "danger" | "ok" | "warn";
+export type Variant = "primary" | "secondary" | "ghost" | "danger" | "ok" | "warn" | "accent";
 export type Size = "md" | "lg" | "xl" | "none";
 
 const BASE =
@@ -15,6 +16,7 @@ const VARIANTS: Record<Variant, string> = {
   danger: "bg-danger text-danger-fg hover:brightness-110",
   ok: "bg-ok text-ok-fg hover:brightness-110",
   warn: "bg-warn text-warn-fg hover:brightness-105",
+  accent: "bg-accent text-accent-fg hover:brightness-105",
 };
 
 const SIZES: Record<Size, string> = {
@@ -106,7 +108,7 @@ export function ScreenHeader({
             <ArrowLeftIcon />
           </Link>
         )}
-        <h1 className={`min-w-0 flex-1 truncate text-xl font-extrabold ${backHref ? "" : "pl-2"}`}>{title}</h1>
+        <h1 className={`min-w-0 flex-1 truncate font-serif text-2xl font-bold ${backHref ? "" : "pl-2"}`}>{title}</h1>
         <nav className="flex shrink-0 items-center gap-1">{actions ?? <HeaderLinks />}</nav>
       </div>
     </header>
@@ -124,7 +126,11 @@ export function Page({ children, className = "" }: { children: ReactNode; classN
 
 export function Skeleton({ label = "Chargement…" }: { label?: string }) {
   return (
-    <div role="status" className="mx-auto flex min-h-[50dvh] w-full max-w-3xl items-center justify-center p-8 text-lg text-muted">
+    <div
+      role="status"
+      className="mx-auto flex min-h-[50dvh] w-full max-w-3xl flex-col items-center justify-center gap-3 p-8 text-lg text-muted"
+    >
+      <CowIcon className="h-16 w-16 animate-pulse" />
       {label}
     </div>
   );

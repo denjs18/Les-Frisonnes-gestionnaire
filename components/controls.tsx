@@ -35,7 +35,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
     >
       <div className="rounded-t-3xl border-t-2 border-line bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-3xl sm:border-2">
         <div className="mb-3 flex items-start gap-2">
-          <h2 id={titleId} className="min-w-0 flex-1 pt-2 text-lg font-extrabold leading-snug">
+          <h2 id={titleId} className="min-w-0 flex-1 pt-2 font-serif text-xl font-bold leading-snug">
             {title}
           </h2>
           <Button variant="ghost" aria-label="Fermer" onClick={onClose} className="!px-3 text-2xl">

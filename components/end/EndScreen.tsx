@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useApp, useRequireSession } from "@/components/AppProvider";
+import { Cow } from "@/components/brand/Illustrations";
 import { CheckIcon, RepeatIcon, TableIcon, UploadIcon } from "@/components/icons";
 import { Button, Card, Page, ScreenHeader, Skeleton } from "@/components/ui";
 import { count, formatQuantity } from "@/lib/format";
@@ -51,12 +52,16 @@ export function EndScreen() {
       <ScreenHeader title="Terminé" />
       <Page className="flex flex-col gap-4">
         <div className="flex flex-col items-center gap-2 py-2 text-center">
-          <span className="flex h-24 w-24 items-center justify-center rounded-full bg-ok text-ok-fg">
-            <CheckIcon className="text-6xl" />
-          </span>
-          <h2 className="text-3xl font-extrabold">Préparation terminée !</h2>
+          <div className="relative w-64 max-w-full">
+            <Cow className="h-auto w-full" />
+            <span className="absolute right-1 top-0 flex h-14 w-14 items-center justify-center rounded-full bg-ok text-ok-fg shadow-md">
+              <CheckIcon className="text-4xl" />
+            </span>
+          </div>
+          <h2 className="font-serif text-4xl font-bold">Préparation terminée !</h2>
           <p data-testid="recap-summary" className="text-lg font-semibold text-muted">
-            {count(plan.products.length, "produit", "produits")} · {count(new Set(plan.steps.flatMap((s) => (s.rowPos === null ? [] : [s.rowPos]))).size, "client", "clients")} ·{" "}
+            {count(plan.products.length, "produit", "produits")} ·{" "}
+            {count(new Set(plan.steps.flatMap((s) => (s.rowPos === null ? [] : [s.rowPos]))).size, "client", "clients")} ·{" "}
             {count(plan.steps.length, "étape", "étapes")}
           </p>
         </div>
@@ -77,7 +82,7 @@ export function EndScreen() {
         </div>
 
         <Card>
-          <h3 className="mb-2 text-xl font-extrabold">Récapitulatif</h3>
+          <h3 className="mb-2 font-serif text-2xl font-bold">Récapitulatif</h3>
           <ul className="divide-y divide-line">
             {plan.products.map((product) => (
               <li key={product.colPos} className="flex items-baseline gap-3 py-2">

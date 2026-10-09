@@ -17,7 +17,7 @@ const SAMPLE = "38 yaourt nature 0,5 litre. 4 pour Nature Champs.";
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Card className="flex flex-col gap-3">
-      <h2 className="text-xl font-extrabold">{title}</h2>
+      <h2 className="font-serif text-2xl font-bold">{title}</h2>
       {children}
     </Card>
   );

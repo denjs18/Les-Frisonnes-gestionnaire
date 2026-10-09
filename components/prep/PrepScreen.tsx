@@ -121,10 +121,10 @@ export function PrepScreen() {
             <MiniTable
               plan={plan}
               current={prep.index}
-              className="min-h-16 flex-1 [@media(max-height:600px)]:hidden [[data-scale=xlarge]_&]:hidden"
+              className="min-h-16 flex-initial [@media(max-height:600px)]:hidden [[data-scale=xlarge]_&]:hidden"
             />
 
-            <div className="flex shrink-0 items-center gap-3">
+            <div className="mt-auto flex shrink-0 items-center gap-3">
               <MicBadge status={snapshot.micStatus} onPress={onMicPress} />
               <p data-testid="heard" aria-live="polite" className="min-w-0 flex-1 text-sm leading-snug text-muted">
                 {heard ? (
@@ -193,7 +193,7 @@ export function PrepScreen() {
                   Répéter
                 </Button>
                 <Button
-                  variant={prep.paused ? "ok" : "warn"}
+                  variant={prep.paused ? "ok" : "accent"}
                   size="none"
                   className="min-h-[clamp(3.75rem,9dvh,5rem)] flex-col gap-0.5 rounded-2xl px-1 text-base"
                   onClick={prep.paused ? actions.resume : actions.pause}

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { useApp } from "@/components/AppProvider";
+import { FarmScene } from "@/components/brand/Illustrations";
 import { HelpIcon, PlayIcon, TableIcon, UploadIcon } from "@/components/icons";
 import { Logo } from "@/components/Logo";
 import { Banner, Button, ButtonLink, Card, Page, ScreenHeader, Skeleton } from "@/components/ui";
@@ -52,7 +53,9 @@ export function HomeScreen() {
       dispatch({ type: "import", model, importedAt: new Date().toISOString() });
       router.push("/verification");
     } catch (e) {
-      setError(e instanceof ImportError ? e.message : "Ce fichier n'a pas pu être ouvert. Essayez avec un fichier Excel (.xlsx) ou CSV.");
+      setError(
+        e instanceof ImportError ? e.message : "Ce fichier n'a pas pu être ouvert. Essayez avec un fichier Excel (.xlsx) ou CSV.",
+      );
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -82,21 +85,26 @@ export function HomeScreen() {
     <>
       <ScreenHeader title="Prépa Commandes" />
       <Page className="flex flex-col gap-4">
-        <div className="flex items-center gap-4 py-2">
-          <Logo size={72} />
-          <p className="text-lg font-semibold leading-snug">
-            Le total à sortir, puis chaque client, dicté à voix haute.
-          </p>
+        <div className="flex items-center gap-4">
+          <Logo size={104} />
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">Fromagerie des Frisonnes</p>
+            <p className="mt-1 font-serif text-2xl font-bold leading-snug">
+              Le total à sortir, puis chaque client, à voix haute.
+            </p>
+          </div>
         </div>
+        <FarmScene className="h-auto w-full" />
 
         {session && summary && (
           <Card className="flex flex-col gap-3 border-2 border-primary">
             <div>
               <p className="text-sm font-bold uppercase tracking-wide text-muted">En cours</p>
-              <h2 className="text-2xl font-extrabold leading-tight">{summary.title}</h2>
+              <h2 className="font-serif text-3xl font-bold leading-tight">{summary.title}</h2>
               <p className="text-lg font-semibold">{summary.detail}</p>
               <p className="mt-1 break-words text-sm text-muted">
-                {session.model.fileName} · importé le {new Date(session.importedAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+                {session.model.fileName} · importé le{" "}
+                {new Date(session.importedAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
               </p>
             </div>
             {canResume && (
@@ -120,10 +128,10 @@ export function HomeScreen() {
         )}
 
         <Card className="flex flex-col gap-3">
-          <h2 className="text-xl font-extrabold">{session ? "Nouveau fichier" : "Commencer"}</h2>
+          <h2 className="font-serif text-2xl font-bold">{session ? "Nouveau fichier" : "Commencer"}</h2>
           <p className="text-base text-muted">
-            Choisissez le tableau des commandes ({spreadsheetImporter.label}). Le fichier est lu sur cet appareil et n&apos;est envoyé
-            nulle part.
+            Choisissez le tableau des commandes ({spreadsheetImporter.label}). Le fichier est lu sur cet appareil et n&apos;est
+            envoyé nulle part.
           </p>
           <input
             ref={inputRef}
