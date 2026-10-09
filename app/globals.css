@@ -6,52 +6,53 @@
  */
 :root {
   color-scheme: light;
-  --bg: #eef2f7;
+  /* Palette tirée du logo : encre noire, vert du trèfle (#48a858, assombri pour le contraste), papier crème, jaune fromage. */
+  --bg: #f6f3ea;
   --surface: #ffffff;
-  --surface-2: #e4eaf3;
-  --fg: #0b1220;
-  --muted: #465468;
-  --line: #b8c4d6;
-  --primary: #1d4ed8;
+  --surface-2: #ece7d8;
+  --fg: #1c1a16;
+  --muted: #5a554a;
+  --line: #cdc5b0;
+  --primary: #2d7a3b;
   --primary-fg: #ffffff;
-  --primary-soft: #dbe7ff;
-  --accent: #facc15;
-  --accent-fg: #111827;
-  --warn: #f59e0b;
-  --warn-fg: #2b1700;
-  --warn-soft: #ffeccb;
-  --warn-text: #b45309;
-  --ok: #15803d;
+  --primary-soft: #dcecd9;
+  --accent: #f6cf45;
+  --accent-fg: #231a00;
+  --warn: #f0870a;
+  --warn-fg: #1f1000;
+  --warn-soft: #fdebd0;
+  --warn-text: #9a4a00;
+  --ok: #2d7a3b;
   --ok-fg: #ffffff;
-  --ok-soft: #d8f5e1;
-  --danger: #b91c1c;
+  --ok-soft: #dcecd9;
+  --danger: #b3261e;
   --danger-fg: #ffffff;
-  --danger-soft: #fde0e0;
+  --danger-soft: #fbe0dc;
 }
 
 html[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #080d17;
-  --surface: #121b2d;
-  --surface-2: #1c2741;
-  --fg: #f8fafc;
-  --muted: #aab6cb;
-  --line: #34425f;
-  --primary: #2563eb;
-  --primary-fg: #ffffff;
-  --primary-soft: #1a2f63;
-  --accent: #facc15;
-  --accent-fg: #111827;
-  --warn: #fbbf24;
-  --warn-fg: #1c1300;
-  --warn-soft: #3d2c06;
-  --warn-text: #fbbf24;
-  --ok: #22a455;
-  --ok-fg: #04140a;
-  --ok-soft: #0f3320;
-  --danger: #ef4444;
+  --bg: #0d130e;
+  --surface: #151e16;
+  --surface-2: #1e2a20;
+  --fg: #f4f1e8;
+  --muted: #b3baa8;
+  --line: #34443a;
+  --primary: #48a858;
+  --primary-fg: #06210a;
+  --primary-soft: #1b3a20;
+  --accent: #f6cf45;
+  --accent-fg: #231a00;
+  --warn: #fbb040;
+  --warn-fg: #1f1000;
+  --warn-soft: #3b2b0c;
+  --warn-text: #fbbf5a;
+  --ok: #48a858;
+  --ok-fg: #06210a;
+  --ok-soft: #173a1c;
+  --danger: #ef5350;
   --danger-fg: #1a0505;
-  --danger-soft: #451616;
+  --danger-soft: #4a1b19;
 }
 
 @theme inline {
@@ -77,6 +78,8 @@ html[data-theme="dark"] {
   --color-danger-fg: var(--danger-fg);
   --color-danger-soft: var(--danger-soft);
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Titres : un serif classique, comme le lettrage du logo (aucune police à télécharger). */
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Noto Serif", serif;
 }
 
 /* Taille du texte (réglage) : tout est en rem, donc tout suit. */

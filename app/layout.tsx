@@ -11,7 +11,10 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "Prépa Commandes", statusBarStyle: "default" },
   formatDetection: { telephone: false },
   icons: {
-    icon: [{ url: "/icons/icon.svg", type: "image/svg+xml" }, { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
     apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
   },
 };
@@ -21,8 +24,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#eef2f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#080d17" },
+    { media: "(prefers-color-scheme: light)", color: "#f6f3ea" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d130e" },
   ],
 };
 
