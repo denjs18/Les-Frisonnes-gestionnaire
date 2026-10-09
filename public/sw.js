@@ -37,8 +37,17 @@ async function precache() {
       for (const match of html.matchAll(/\/_next\/static\/[^"'\\\s)<>]+/g)) assets.add(match[0]);
     }),
   );
-  await Promise.allSettled([...assets].map((url) => statics.add(url)));
+  await Promise.allSettled(
+    [...assets].map(async (url) => {
+      if (!(await statics.match(url))) await statics.add(url);
+    }),
+  );
 }
+
+// L'appli demande une mise à jour du cache à chaque lancement, pour que les nouvelles versions marchent aussi hors connexion.
+self.addEventListener("message", (event) => {
+  if (event.data === "precache") event.waitUntil(precache());
+});
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;

@@ -8,7 +8,10 @@ export function ServiceWorkerRegistration() {
     if (process.env.NODE_ENV !== "production" || !("serviceWorker" in navigator)) return;
     navigator.serviceWorker
       .register("/sw.js", { scope: "/", updateViaCache: "none" })
-      .then(() => {
+      .then(async () => {
+        // Rafraîchit le cache hors connexion (nouvelle version éventuelle de l'appli).
+        const registration = await navigator.serviceWorker.ready;
+        registration.active?.postMessage("precache");
         // Charge dès maintenant le lecteur Excel (mis en cache par le service worker) :
         // sans cela, importer un fichier hors connexion ne marcherait pas la première fois.
         const warmUp = () => void import("@/lib/import/xlsx").catch(() => {});
