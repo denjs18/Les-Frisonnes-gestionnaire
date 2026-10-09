@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+/*
+ * Couleurs : tout passe par des variables, clair par défaut, sombre quand
+ * <html data-theme="dark"> (posé avant l'affichage par le script du layout).
+ */
+:root {
+  color-scheme: light;
+  --bg: #eef2f7;
+  --surface: #ffffff;
+  --surface-2: #e4eaf3;
+  --fg: #0b1220;
+  --muted: #465468;
+  --line: #b8c4d6;
+  --primary: #1d4ed8;
+  --primary-fg: #ffffff;
+  --primary-soft: #dbe7ff;
+  --accent: #facc15;
+  --accent-fg: #111827;
+  --warn: #f59e0b;
+  --warn-fg: #2b1700;
+  --warn-soft: #ffeccb;
+  --warn-text: #b45309;
+  --ok: #15803d;
+  --ok-fg: #ffffff;
+  --ok-soft: #d8f5e1;
+  --danger: #b91c1c;
+  --danger-fg: #ffffff;
+  --danger-soft: #fde0e0;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #080d17;
+  --surface: #121b2d;
+  --surface-2: #1c2741;
+  --fg: #f8fafc;
+  --muted: #aab6cb;
+  --line: #34425f;
+  --primary: #2563eb;
+  --primary-fg: #ffffff;
+  --primary-soft: #1a2f63;
+  --accent: #facc15;
+  --accent-fg: #111827;
+  --warn: #fbbf24;
+  --warn-fg: #1c1300;
+  --warn-soft: #3d2c06;
+  --warn-text: #fbbf24;
+  --ok: #22a455;
+  --ok-fg: #04140a;
+  --ok-soft: #0f3320;
+  --danger: #ef4444;
+  --danger-fg: #1a0505;
+  --danger-soft: #451616;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-primary-soft: var(--primary-soft);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-warn: var(--warn);
+  --color-warn-fg: var(--warn-fg);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-text: var(--warn-text);
+  --color-ok: var(--ok);
+  --color-ok-fg: var(--ok-fg);
+  --color-ok-soft: var(--ok-soft);
+  --color-danger: var(--danger);
+  --color-danger-fg: var(--danger-fg);
+  --color-danger-soft: var(--danger-soft);
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Taille du texte (réglage) : tout est en rem, donc tout suit. */
+html[data-scale="large"] {
+  font-size: 112.5%;
+}
+html[data-scale="xlarge"] {
+  font-size: 125%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+button,
+[role="button"],
+input,
+select,
+label,
+summary,
+a {
+  touch-action: manipulation;
+}
+
+/* Anneau de focus bien visible (clavier, lecteurs d'écran, boutons physiques). */
+:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Fenêtres modales natives (<dialog>) présentées en bas de l'écran. */
+dialog.sheet {
+  margin: auto 0 0 0;
+  padding: 0;
+  width: 100%;
+  max-width: 40rem;
+  max-height: 88dvh;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  overflow: visible;
+}
+@media (min-width: 40rem) {
+  dialog.sheet {
+    margin: auto;
+  }
+}
+dialog.sheet::backdrop {
+  background: rgb(2 6 18 / 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
