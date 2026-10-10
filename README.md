@@ -186,8 +186,8 @@ En local : un fichier `.env.local` (ignoré par git) contenant `GEMINI_API_KEY=�
   WebP) de 4 Mo au plus, et vérifie le code d'accès (comparaison à temps constant). Ce sont les limites de Vercel (4,5 Mo par envoi,
   60 s par lecture) qui fixent ces valeurs.
 - **Plusieurs modèles sont essayés l'un après l'autre** : l'offre gratuite plafonne chaque modèle séparément (environ 20 demandes par
-  jour), Google en retire régulièrement et les modèles sont parfois saturés (503). Un modèle saturé, épuisé, retiré ou trop lent
-  (32 s) fait passer au suivant, dans un budget de 52 s ; une clé refusée arrête tout de suite, et deux modèles qui refusent la
+  jour), Google en retire régulièrement et les modèles sont parfois saturés (503). Un modèle saturé, épuisé, retiré, **muet** (la
+  réponse arrive en continu : pas de début en 10 s) ou trop lent (32 s) fait passer au suivant, dans un budget de 52 s ; une clé refusée arrête tout de suite, et deux modèles qui refusent la
   demande de suite (la photo est en cause) aussi. L'ordre (`lib/photo/gemini.ts`) vient d'essais sur un grand tableau : les plus
   récents lisent nettement mieux que les plus anciens, gardés en secours.
 - Les erreurs sont expliquées en français et proposent l'import d'un fichier (limite du jour atteinte, service saturé, pas de réseau…).

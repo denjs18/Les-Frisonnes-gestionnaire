@@ -9,9 +9,32 @@ const ROWS = [["Clients", "Yaourt", "Fromage"], ["Alice", "3", "2"]];
 /** Ce que Gemini répond : le tableau en forme « creuse », avec la case Alice / Yaourt jugée douteuse. */
 const TABLE = sparseAnswer(ROWS, [[1, 1]]);
 
-/** Ce que Gemini renvoie quand tout va bien. */
+/** Un événement de la réponse en continu de Gemini : le texte de la réponse, en un ou plusieurs morceaux. */
+const event = (...texts: string[]) => `data: ${JSON.stringify({ candidates: [{ content: { parts: texts.map((text) => ({ text })) } }] })}\r\n\r\n`;
+const textOf = (content: unknown) => (typeof content === "string" ? content : JSON.stringify(content));
+
+/** Ce que Gemini renvoie quand tout va bien : toute la réponse dans un seul événement. */
 const answer = (content: unknown = TABLE) =>
-  Response.json({ candidates: [{ content: { parts: [{ text: typeof content === "string" ? content : JSON.stringify(content) }] } }] });
+  new Response(event(textOf(content)), { status: 200, headers: { "Content-Type": "text/event-stream" } });
+
+/**
+ * Une réponse livrée par morceaux d'octets, chacun après son délai (ms) : les morceaux peuvent couper un événement n'importe où.
+ * `end: false` : la connexion reste ouverte sans rien envoyer de plus (un modèle qui se tait après avoir commencé).
+ */
+function streamed(pieces: { text: string; after?: number }[], end = true): Response {
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      for (const { text, after = 0 } of pieces) {
+        if (after > 0) await new Promise((resolve) => setTimeout(resolve, after));
+        controller.enqueue(encoder.encode(text));
+      }
+      if (end) controller.close();
+    },
+  });
+  return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+}
+
 const fail = (status: number, message = "erreur") => Response.json({ error: { code: status, message } }, { status });
 
 interface Call {
@@ -71,7 +94,7 @@ describe("lecture d'une photo par Gemini", () => {
       await read(fetchImpl);
       expect(calls[0].headers["x-goog-api-key"]).toBe(KEY);
       expect(calls[0].url).not.toContain(KEY);
-      expect(calls[0].url).toBe("https://generativelanguage.googleapis.com/v1beta/models/m1:generateContent");
+      expect(calls[0].url).toBe("https://generativelanguage.googleapis.com/v1beta/models/m1:streamGenerateContent?alt=sse");
     });
 
     it("buildRequest : sans le réglage de réflexion quand on le retire", () => {
@@ -90,23 +113,27 @@ describe("lecture d'une photo par Gemini", () => {
       });
     });
 
-    it("recolle une réponse découpée en plusieurs morceaux", async () => {
+    it("recolle une réponse découpée en plusieurs événements", async () => {
       const text = JSON.stringify(TABLE);
-      const split = Response.json({ candidates: [{ content: { parts: [{ text: text.slice(0, 10) }, { text: text.slice(10) }] } }] });
-      const { fetchImpl } = fakeFetch(split);
-      expect((await read(fetchImpl)).rows).toEqual(ROWS);
+      const response = new Response(event(text.slice(0, 10)) + event(text.slice(10, 40)) + event(text.slice(40)), { status: 200 });
+      expect((await read(fakeFetch(response).fetchImpl)).rows).toEqual(ROWS);
     });
 
-    it("aucune réponse de Gemini : inutilisable, sans essayer d'autres modèles", async () => {
-      const { fetchImpl, calls } = fakeFetch(Response.json({ candidates: [] }));
+    it("aucune réponse de Gemini : « unreadable » (après avoir laissé sa chance aux autres modèles)", async () => {
+      const { fetchImpl, calls } = fakeFetch(new Response("data: " + JSON.stringify({ candidates: [] }) + "\r\n\r\n", { status: 200 }));
       expect((await failureOf(read(fetchImpl))).code).toBe("unreadable");
-      expect(calls).toHaveLength(1);
+      expect(calls).toHaveLength(3);
     });
 
-    it("réponse qui n'est pas du JSON : inutilisable", async () => {
+    it("réponse qui n'est pas du JSON : « unreadable » (après avoir laissé sa chance aux autres modèles)", async () => {
       const { fetchImpl, calls } = fakeFetch(answer("Voici votre tableau : …"));
       expect((await failureOf(read(fetchImpl))).code).toBe("unreadable");
-      expect(calls).toHaveLength(1);
+      expect(calls).toHaveLength(3);
+    });
+
+    it("réponse inutilisable d'un modèle mais pas du suivant : la lecture réussit", async () => {
+      const { fetchImpl } = fakeFetch(answer("Voici votre tableau : …"), answer({ columns: [], rows: "abc" }), answer());
+      expect((await read(fetchImpl)).model).toBe("m3");
     });
 
     it("photo sans tableau : « no-table », sans essayer d'autres modèles", async () => {
@@ -253,7 +280,7 @@ describe("lecture d'une photo par Gemini", () => {
         });
       }) as unknown as typeof fetch;
       const started = Date.now();
-      const error = await failureOf(read(hanging, { attemptMs: 30 }));
+      const error = await failureOf(read(hanging, { firstByteMs: 30 }));
       expect(error.code).toBe("busy");
       expect(calls).toBe(3); // un essai par modèle, chacun coupé au bout de 30 ms
       expect(Date.now() - started).toBeLessThan(2_000);
@@ -263,6 +290,87 @@ describe("lecture d'une photo par Gemini", () => {
       const { fetchImpl, calls } = fakeFetch(answer());
       expect((await failureOf(read(fetchImpl, { budgetMs: 0 }))).code).toBe("busy");
       expect(calls).toHaveLength(0);
+    });
+  });
+
+  describe("réponse en continu", () => {
+    const text = JSON.stringify(TABLE);
+    const whole = event(text);
+
+    it("accepte des morceaux d'octets qui coupent un événement n'importe où (y compris au milieu d'un mot accentué)", async () => {
+      const bytes = new TextEncoder().encode(event(JSON.stringify(sparseAnswer([["Clients", "Café", "Crème"], ["Éric", "3", "2"]]))));
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          // morceaux de 7 octets : coupe les accents, les guillemets et la ligne vide finale
+          for (let i = 0; i < bytes.length; i += 7) controller.enqueue(bytes.slice(i, i + 7));
+          controller.close();
+        },
+      });
+      const result = await read(fakeFetch(new Response(stream, { status: 200 })).fetchImpl);
+      expect(result.rows).toEqual([["Clients", "Café", "Crème"], ["Éric", "3", "2"]]);
+    });
+
+    it("accepte la fin de ligne Unix comme la fin de ligne Windows, et un dernier événement sans ligne vide", async () => {
+      const unix = `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: text.slice(0, 20) }] } }] })}\n\ndata: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: text.slice(20) }] } }] })}`;
+      expect((await read(fakeFetch(new Response(unix, { status: 200 })).fetchImpl)).rows).toEqual(ROWS);
+    });
+
+    it("ignore ce qui n'est pas de la réponse : résumés de réflexion, lignes de commentaire, « [DONE] »", async () => {
+      const chunk = JSON.stringify({ candidates: [{ content: { parts: [{ text: "Je regarde la photo…", thought: true }, { text }] } }] });
+      const response = new Response(`: ping\r\n\r\ndata: ${chunk}\r\n\r\ndata: [DONE]\r\n\r\n`, { status: 200 });
+      expect((await read(fakeFetch(response).fetchImpl)).rows).toEqual(ROWS);
+    });
+
+    it("un modèle muet est abandonné au bout du délai de premier octet, sans attendre la durée d'un essai entier", async () => {
+      // Le premier modèle ne répond jamais (le vrai `fetch` échoue quand on l'interrompt) ; le second répond tout de suite.
+      const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+        if (String(url).includes("/m1:")) {
+          return new Promise<Response>((_resolve, reject) => init!.signal!.addEventListener("abort", () => reject(init!.signal!.reason)));
+        }
+        return answer();
+      }) as unknown as typeof fetch;
+      const started = Date.now();
+      const result = await read(fetchImpl, { firstByteMs: 40, attemptMs: 5_000 });
+      expect(result.model).toBe("m2");
+      expect(Date.now() - started).toBeLessThan(1_000);
+    });
+
+    it("une réponse qui a commencé a jusqu'à la fin de l'essai pour arriver, même si elle dépasse le délai de premier octet", async () => {
+      const slow = () => streamed([{ text: whole.slice(0, 30), after: 10 }, { text: whole.slice(30), after: 150 }]);
+      const result = await read(fakeFetch(slow).fetchImpl, { firstByteMs: 60, attemptMs: 2_000 });
+      expect(result.model).toBe("m1");
+      expect(result.rows).toEqual(ROWS);
+    });
+
+    it("une réponse qui s'arrête en route est abandonnée à la fin de l'essai : le modèle suivant prend le relais", async () => {
+      const stalled = () => streamed([{ text: whole.slice(0, 30) }], false);
+      const { fetchImpl, calls } = fakeFetch(stalled, answer());
+      const result = await read(fetchImpl, { firstByteMs: 500, attemptMs: 120 });
+      expect(result.model).toBe("m2");
+      expect(calls).toHaveLength(2);
+    });
+
+    it("une erreur annoncée en cours de route compte comme celle d'un en-tête (ici : quota atteint)", async () => {
+      const errorEvent = `data: ${JSON.stringify({ error: { code: 429, message: "quota" } })}\r\n\r\n`;
+      const { fetchImpl } = fakeFetch(new Response(errorEvent, { status: 200 }), answer());
+      expect((await read(fetchImpl)).model).toBe("m2");
+    });
+
+    it("une clé refusée annoncée en cours de route arrête tout", async () => {
+      const errorEvent = `data: ${JSON.stringify({ error: { code: 403, message: "forbidden" } })}\r\n\r\n`;
+      const { fetchImpl, calls } = fakeFetch(new Response(errorEvent, { status: 200 }), answer());
+      expect((await failureOf(read(fetchImpl))).code).toBe("bad-key");
+      expect(calls).toHaveLength(1);
+    });
+
+    it("un événement qui n'est pas du JSON est un échec de ce modèle", async () => {
+      const { fetchImpl } = fakeFetch(new Response("data: {pas du json\r\n\r\n", { status: 200 }), answer());
+      expect((await read(fetchImpl)).model).toBe("m2");
+    });
+
+    it("pas de corps de réponse : échec de ce modèle, le suivant essaie", async () => {
+      const { fetchImpl } = fakeFetch(new Response(null, { status: 200 }), answer());
+      expect((await read(fetchImpl)).model).toBe("m2");
     });
   });
 

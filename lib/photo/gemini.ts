@@ -1,6 +1,6 @@
 import { normalizeSparseTable } from "./normalize";
 import { PHOTO_PROMPT, PHOTO_RESPONSE_SCHEMA } from "./prompt";
-import { PhotoError, type PhotoReadResponse } from "./types";
+import { PhotoError, type PhotoReadResponse, type PhotoTable } from "./types";
 
 /**
  * Les modèles essayés l'un après l'autre. Google en retire régulièrement (les « 2.5 » ne sont déjà plus offerts aux nouveaux
@@ -37,6 +37,12 @@ export interface ReadOptions {
   budgetMs?: number;
   /** Durée maximale d'un essai avec un modèle (ms) : un grand tableau demande jusqu'à 20 ou 25 s. */
   attemptMs?: number;
+  /**
+   * Délai pour recevoir le début de la réponse (ms). Un modèle saturé reste parfois muet pendant une minute : mieux vaut passer
+   * au suivant au bout de quelques secondes que d'attendre toute la durée d'un essai. Une fois la réponse commencée, elle a
+   * jusqu'à la fin de l'essai pour arriver.
+   */
+  firstByteMs?: number;
   now?: () => number;
 }
 
@@ -63,51 +69,135 @@ function errorMessage(body: unknown): string {
   return typeof message === "string" ? message : "";
 }
 
-/** Texte de la réponse de Gemini (les « parts » de la première proposition). */
-function answerText(body: unknown): string {
-  const parts = (body as { candidates?: { content?: { parts?: { text?: unknown }[] } }[] } | null)?.candidates?.[0]?.content?.parts;
-  return (parts ?? []).map((part) => (typeof part.text === "string" ? part.text : "")).join("");
-}
-
 class Transient extends Error {
   constructor(
-    readonly kind: "quota" | "busy" | "gone" | "upstream" | "rejected",
+    readonly kind: "quota" | "busy" | "gone" | "upstream" | "rejected" | "garbled",
     message: string,
   ) {
     super(message);
   }
 }
 
-async function ask(model: string, body: unknown, key: string, fetchImpl: typeof fetch, timeoutMs: number) {
-  let response: Response;
-  try {
-    response = await fetchImpl(`${ENDPOINT}/${model}:generateContent`, {
-      method: "POST",
-      // La clé voyage dans l'en-tête, jamais dans l'adresse (les adresses se retrouvent dans les journaux).
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-  } catch (error) {
-    const name = (error as { name?: string } | null)?.name;
-    throw new Transient(name === "TimeoutError" || name === "AbortError" ? "busy" : "upstream", `${model} : pas de réponse`);
-  }
-  const json: unknown = await response.json().catch(() => null);
-  if (response.ok) return json;
+const isAbort = (error: unknown) => ["TimeoutError", "AbortError"].includes((error as { name?: string } | null)?.name ?? "");
 
-  const message = errorMessage(json);
-  if (response.status === 401 || response.status === 403 || (response.status === 400 && /api key/i.test(message))) {
-    throw new PhotoError("bad-key", "La clé Gemini est refusée par Google.");
+/** Ce qu'une erreur renvoyée par Google (en-tête de réponse, ou événement en cours de route) change pour la suite. */
+function failureFor(model: string, status: number, message: string): Transient | PhotoError {
+  if (status === 401 || status === 403 || (status === 400 && /api key/i.test(message))) {
+    return new PhotoError("bad-key", "La clé Gemini est refusée par Google.");
   }
-  if (response.status === 400) {
+  if (status === 400) {
     // Un modèle qui ne connaît pas le réglage de réflexion : on le redemandera sans (voir readTableFromPhoto).
-    if (/thinking/i.test(message)) throw new Transient("upstream", "thinking");
+    if (/thinking/i.test(message)) return new Transient("upstream", "thinking");
     // Soit la photo, soit ce modèle-ci refuse la demande : on essaie le suivant (l'échec se répète si c'est la photo, voir plus bas).
-    throw new Transient("rejected", `${model} : demande refusée`);
+    return new Transient("rejected", `${model} : demande refusée`);
   }
-  if (response.status === 404) throw new Transient("gone", `${model} : modèle retiré`);
-  if (response.status === 429) throw new Transient("quota", `${model} : quota atteint`);
-  throw new Transient(response.status >= 500 ? "busy" : "upstream", `${model} : erreur ${response.status}`);
+  if (status === 404) return new Transient("gone", `${model} : modèle retiré`);
+  if (status === 429) return new Transient("quota", `${model} : quota atteint`);
+  return new Transient(status >= 500 ? "busy" : "upstream", `${model} : erreur ${status}`);
+}
+
+/** Le texte contenu dans un événement de la réponse en continu (une ou plusieurs lignes « data: {...} »). */
+function textOfEvent(model: string, event: string): string {
+  let text = "";
+  for (const line of event.split(/\r?\n/)) {
+    if (!line.startsWith("data:")) continue;
+    const payload = line.slice(5).trim();
+    if (payload === "" || payload === "[DONE]") continue;
+    let chunk: unknown;
+    try {
+      chunk = JSON.parse(payload);
+    } catch {
+      throw new Transient("garbled", `${model} : réponse illisible`);
+    }
+    const error = (chunk as { error?: { code?: unknown; message?: unknown } } | null)?.error;
+    if (error) throw failureFor(model, typeof error.code === "number" ? error.code : 500, typeof error.message === "string" ? error.message : "");
+    const parts = (chunk as { candidates?: { content?: { parts?: { text?: unknown; thought?: unknown }[] } }[] } | null)?.candidates?.[0]?.content?.parts;
+    for (const part of parts ?? []) if (part.thought !== true && typeof part.text === "string") text += part.text;
+  }
+  return text;
+}
+
+/**
+ * Demande la lecture à un modèle et renvoie le texte de sa réponse, reçu en continu : on voit ainsi tout de suite si le modèle
+ * répond (début de réponse avant `firstByteMs`) ou s'il est muet, et on ne l'attend pas inutilement.
+ */
+async function ask(model: string, body: unknown, key: string, fetchImpl: typeof fetch, totalMs: number, firstByteMs: number): Promise<string> {
+  const controller = new AbortController();
+  const started = Date.now();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const arm = (ms: number) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => controller.abort(), Math.max(1, ms));
+  };
+  arm(Math.min(firstByteMs, totalMs));
+  try {
+    let response: Response;
+    try {
+      response = await fetchImpl(`${ENDPOINT}/${model}:streamGenerateContent?alt=sse`, {
+        method: "POST",
+        // La clé voyage dans l'en-tête, jamais dans l'adresse (les adresses se retrouvent dans les journaux).
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      throw new Transient(isAbort(error) ? "busy" : "upstream", `${model} : pas de réponse`);
+    }
+
+    if (!response.ok) {
+      const json: unknown = await response.json().catch(() => null);
+      throw failureFor(model, response.status, errorMessage(json));
+    }
+    if (!response.body) throw new Transient("upstream", `${model} : réponse vide`);
+
+    const reader = response.body.getReader();
+    // Quand le délai est dépassé, on ferme aussi la lecture : tous les `fetch` n'interrompent pas d'eux-mêmes un corps de réponse.
+    controller.signal.addEventListener("abort", () => void reader.cancel().catch(() => {}), { once: true });
+    const decoder = new TextDecoder();
+    let pending = "";
+    let text = "";
+    let first = true;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (controller.signal.aborted) throw new Transient("busy", `${model} : réponse interrompue`);
+        if (done) break;
+        if (first) {
+          first = false;
+          arm(totalMs - (Date.now() - started)); // la réponse a commencé : elle a jusqu'à la fin de l'essai
+        }
+        pending += decoder.decode(value, { stream: true });
+        for (let end = pending.search(/\r?\n\r?\n/); end >= 0; end = pending.search(/\r?\n\r?\n/)) {
+          text += textOfEvent(model, pending.slice(0, end));
+          pending = pending.slice(end).replace(/^\r?\n\r?\n/, "");
+        }
+      }
+      pending += decoder.decode();
+      if (pending.trim() !== "") text += textOfEvent(model, pending);
+    } catch (error) {
+      if (error instanceof Transient || error instanceof PhotoError) throw error;
+      throw new Transient(isAbort(error) ? "busy" : "upstream", `${model} : réponse interrompue`);
+    }
+    return text;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Transforme le texte reçu en tableau ; une réponse inutilisable est un échec de ce modèle (un autre fera peut-être mieux). */
+function interpret(model: string, text: string): PhotoTable {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new Transient("garbled", `${model} : réponse illisible`);
+  }
+  try {
+    return normalizeSparseTable(raw);
+  } catch (error) {
+    if (error instanceof PhotoError && error.code === "unreadable") throw new Transient("garbled", `${model} : réponse illisible`);
+    throw error; // aucun tableau, tableau démesuré : un autre modèle n'y changerait rien
+  }
 }
 
 /**
@@ -119,6 +209,7 @@ export async function readTableFromPhoto(image: Uint8Array, mimeType: string, op
   const now = options.now ?? Date.now;
   const budget = options.budgetMs ?? 52_000;
   const attempt = options.attemptMs ?? 32_000;
+  const firstByte = options.firstByteMs ?? 10_000;
   const models = options.models ?? DEFAULT_MODELS;
   const base64 = toBase64(image);
   const start = now();
@@ -130,16 +221,9 @@ export async function readTableFromPhoto(image: Uint8Array, mimeType: string, op
       const left = budget - (now() - start);
       if (left < 2_000) break;
       try {
-        const json = await ask(model, buildRequest(base64, mimeType, withThinking), options.apiKey, fetchImpl, Math.min(attempt, left));
-        const text = answerText(json);
-        if (text === "") throw new PhotoError("unreadable", "Google n'a rien répondu pour cette photo.");
-        let raw: unknown;
-        try {
-          raw = JSON.parse(text);
-        } catch {
-          throw new PhotoError("unreadable", "La réponse de la lecture est inutilisable.");
-        }
-        return { ...normalizeSparseTable(raw), model };
+        const text = await ask(model, buildRequest(base64, mimeType, withThinking), options.apiKey, fetchImpl, Math.min(attempt, left), firstByte);
+        if (text.trim() === "") throw new Transient("garbled", `${model} : réponse vide`);
+        return { ...interpret(model, text), model };
       } catch (error) {
         if (!(error instanceof Transient)) throw error;
         // Seul le refus du réglage de réflexion se retente avec le même modèle (sans ce réglage) ; le reste passe au modèle suivant.
@@ -159,6 +243,10 @@ export async function readTableFromPhoto(image: Uint8Array, mimeType: string, op
   const everyQuota = failures.length > 0 && failures.every((kind) => kind === "quota" || kind === "gone");
   if (failures.includes("quota") && everyQuota) {
     throw new PhotoError("quota", "Le nombre de photos gratuites du jour est atteint.", detail);
+  }
+  // Tous les modèles ont répondu n'importe quoi : la photo n'est pas assez lisible.
+  if (failures.length > 0 && failures.every((kind) => kind === "garbled")) {
+    throw new PhotoError("unreadable", "La lecture n'a rien donné d'exploitable.", detail);
   }
   // Plus de temps (aucun essai possible) ou Google saturé : réessayer plus tard.
   if (failures.length === 0 || failures.includes("busy") || failures.includes("quota")) {

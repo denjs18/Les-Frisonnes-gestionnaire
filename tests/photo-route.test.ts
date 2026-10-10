@@ -13,8 +13,9 @@ const WEBP = new Uint8Array([0x52, 0x49, 0x46, 0x46, 1, 0, 0, 0, 0x57, 0x45, 0x4
 
 const ROWS = [["Clients", "Yaourt", "Fromage"], ["Alice", "3", "2"]];
 const TABLE = sparseAnswer(ROWS, [[1, 1]]);
+/** Ce que Gemini renvoie quand tout va bien : sa réponse en continu (un seul événement). */
 const gemini = (content: unknown = TABLE) =>
-  Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(content) }] } }] });
+  new Response(`data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(content) }] } }] })}\r\n\r\n`, { status: 200 });
 const geminiError = (status: number) => Response.json({ error: { message: "erreur" } }, { status });
 
 let googleFetch: ReturnType<typeof vi.fn>;
@@ -92,7 +93,7 @@ describe("/api/lire-photo : lire une photo (POST)", () => {
     await send(PNG as BodyInit);
     expect(googleFetch).toHaveBeenCalledTimes(1);
     const [url, init] = googleFetch.mock.calls[0] as [string, RequestInit];
-    expect(url).toContain("/models/m1:generateContent");
+    expect(url).toContain("/models/m1:streamGenerateContent");
     expect(url).not.toContain(KEY);
     expect((init.headers as Record<string, string>)["x-goog-api-key"]).toBe(KEY);
     const part = JSON.parse(String(init.body)).contents[0].parts[1].inline_data;
@@ -206,7 +207,9 @@ describe("/api/lire-photo : lire une photo (POST)", () => {
     });
 
     it("réponse de Google inutilisable : 502", async () => {
-      googleFetch.mockImplementation(async () => Response.json({ candidates: [{ content: { parts: [{ text: "pas du JSON" }] } }] }));
+      googleFetch.mockImplementation(
+        async () => new Response(`data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: "pas du JSON" }] } }] })}\r\n\r\n`, { status: 200 }),
+      );
       const response = await send();
       expect(response.status).toBe(502);
       expect((await json(response)).error).toBe("unreadable");
