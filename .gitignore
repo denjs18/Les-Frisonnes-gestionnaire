@@ -16,7 +16,7 @@
 *.pem
 npm-debug.log*
 
-# fichiers d'environnement (l'appli n'en utilise aucun)
+# fichiers d'environnement : la clé de la lecture de photo (GEMINI_API_KEY) ne doit jamais être dans git
 .env*
 
 # vercel
