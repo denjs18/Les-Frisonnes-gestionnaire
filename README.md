@@ -5,14 +5,16 @@ Application web (installable sur le téléphone) pour **préparer des commandes 
 d'abord le **total à sortir**, puis la **quantité pour chaque client**. On avance en disant « suivant »
 ou avec de gros boutons (les mains sont souvent occupées et l'endroit bruyant).
 
-Tout se passe dans le navigateur : pas de compte, pas de base de données, pas de variable d'environnement.
-Le fichier est lu sur l'appareil et n'est envoyé nulle part ; la préparation en cours est enregistrée
-dans le navigateur (`localStorage`) pour pouvoir être reprise.
+Tout se passe dans le navigateur : pas de compte, pas de base de données. Le fichier est lu sur l'appareil et
+n'est envoyé nulle part ; la préparation en cours est enregistrée dans le navigateur (`localStorage`) pour pouvoir
+être reprise. Seule exception, **facultative** : la lecture d'une **photo du tableau** passe par un petit service
+sur Internet (voir « Photo du tableau » plus bas) ; sans clé pour ce service, l'appli reste 100 % locale.
 
 ## Fonctionnement
 
-1. **Accueil** : importer le fichier `.xlsx` ou `.csv`, ou reprendre la préparation en cours. Un bouton
-   « Installer l'application » (Android) ou les étapes pour l'ajouter à l'écran d'accueil sont proposés.
+1. **Accueil** : importer le fichier `.xlsx` ou `.csv` (ou, si le site est configuré pour cela, **une photo du tableau**),
+   ou reprendre la préparation en cours. Un bouton « Installer l'application » (Android) ou les étapes pour l'ajouter à
+   l'écran d'accueil sont proposés.
 2. **Vérification** : le tableau est modifiable (boutons +/- ou saisie). Les valeurs douteuses sont en **orange** ;
    le bouton « Tout est correct, commencer » reste grisé tant qu'il en reste.
 3. **Préparation** : « Produit 3/15 · Étape 4/10 », la quantité en très grand, le client, un mini-tableau
@@ -124,7 +126,8 @@ sélecteur de fichiers d'Android et l'installation elle-même.
 | Dossier | Contenu |
 | --- | --- |
 | `lib/` | Toute la logique, sans interface : lecture du fichier, règles d'exclusion, valeurs douteuses, étapes, texte parlé, commandes vocales, sauvegarde, écoute et parole, détection du téléphone (`platform.ts`), installation (`install.ts`) |
-| `lib/import/` | Les **importeurs** (fichier Excel/CSV). Tous produisent un `RawGrid` : le reste de l'appli n'en dépend pas |
+| `lib/import/` | Les **importeurs** (fichier Excel/CSV, et `photo.ts` pour une photo lue). Tous aboutissent à un `RawGrid` : le reste de l'appli n'en dépend pas |
+| `lib/photo/`, `app/api/lire-photo/` | La lecture d'une photo : consigne et appel à Gemini (serveur), mise en forme de la réponse, envoi et réduction de la photo (téléphone), messages d'erreur |
 | `app/`, `components/`, `hooks/` | Les écrans (une adresse par écran) et la voix côté interface ; `components/brand/` : logo et dessins |
 | `tests/` | Tests unitaires (dont `exemple.test.ts`, qui lit `exemple/Classeur1.xlsx`) |
 | `e2e/` | Tests Playwright (390 px, profils Android, voix simulée, hors connexion) |
@@ -132,11 +135,61 @@ sélecteur de fichiers d'Android et l'installation elle-même.
 
 ## Déploiement (Vercel)
 
-Importer le dépôt sur vercel.com (« Add New… > Project ») : Next.js est détecté, **aucune variable d'environnement**,
-puis « Deploy ».
+Importer le dépôt sur vercel.com (« Add New… > Project ») : Next.js est détecté, **aucune variable d'environnement n'est
+obligatoire**, puis « Deploy ». Les variables de la photo (ci-dessous) sont facultatives.
 
-## Évolution prévue : lire une photo du tableau
+## Photo du tableau (facultatif)
 
-Non réalisée pour l'instant, mais prévue : il suffira d'ajouter un importeur dans `lib/import/` (interface
-`TableImporter`) qui transforme la photo en `RawGrid` (par exemple avec Gemini), puis de l'ajouter à la liste `importers`.
-Cela demandera une clé d'API et donc une variable d'environnement, ce que l'appli n'utilise pas aujourd'hui.
+Un bouton **« Photo du tableau »** permet de prendre le tableau en photo au lieu d'importer un fichier. Il n'apparaît que si le
+site connaît une clé pour la lire ; sans clé, l'accueil est exactement celui d'avant (les Réglages indiquent si la lecture est
+activée).
+
+### Comment ça marche
+
+1. Le téléphone redresse la photo, la réduit (2000 px, JPEG) et l'envoie à `POST /api/lire-photo`, une fonction de Vercel
+   (`app/api/lire-photo/route.ts`).
+2. Le serveur la transmet à l'**API Gemini** de Google avec la clé secrète, une consigne de **transcription fidèle** (rien n'est
+   corrigé ni calculé : `*`, `+`, `0,5`, `3*0,2`, ligne TOTAL… sont recopiés tels quels) et une réponse JSON stricte : les lignes du
+   tableau, la liste des cases dont la lecture est **incertaine**, et une remarque éventuelle (photo coupée, floue…).
+3. L'appli suit alors le même chemin qu'un fichier (`RawGrid` → `buildModel` → règles d'exclusion), avec en plus :
+   - les cases incertaines sont **orange** tant qu'on ne les a ni corrigées ni confirmées (« Oui, c'est bien 5 ») ;
+   - une copie réduite de la photo est gardée **sur le téléphone** (`localStorage`) et se consulte à la vérification (« Voir la
+     photo »), y compris depuis une case douteuse ; elle disparaît quand on importe un autre tableau ou qu'on efface les données ;
+   - le bouton de départ devient « J'ai comparé avec la photo : tout est correct, commencer » : une erreur de lecture n'est pas
+     toujours signalée, la comparaison avec la photo reste indispensable.
+
+### Réglage sur Vercel
+
+*Settings > Environment Variables* du projet (cocher *Production*), puis **Redeploy** : une variable n'est prise en compte que par
+les déploiements faits après son ajout.
+
+| Variable | Rôle |
+| --- | --- |
+| `GEMINI_API_KEY` | **Clé de l'API Gemini** (Google AI Studio). Sans elle, la lecture de photo est désactivée. À créer en « Sensitive ». Jamais dans le code ni dans le dépôt. |
+| `GEMINI_MODEL` | Facultatif : modèles à essayer, séparés par des virgules (sinon la liste de `lib/photo/gemini.ts`). |
+| `PHOTO_ACCESS_CODE` | Facultatif : code demandé avant chaque lecture (champ « Code d'accès » sur l'accueil, retenu sur le téléphone). Protège l'offre gratuite si l'adresse du site circule. |
+
+En local : un fichier `.env.local` (ignoré par git) contenant `GEMINI_API_KEY=…`, puis `npm run dev`.
+
+### Robustesse et sécurité
+
+- La clé reste côté serveur (en-tête `x-goog-api-key`, jamais dans une adresse) ; ni elle, ni le code d'accès, ni la photo n'apparaissent
+  dans les réponses ou les journaux.
+- Le serveur n'accepte que les demandes venues du site lui-même, de vraies images (reconnues à leurs premiers octets : JPEG, PNG,
+  WebP) de 4 Mo au plus, et vérifie le code d'accès (comparaison à temps constant). Ce sont les limites de Vercel (4,5 Mo par envoi,
+  60 s par lecture) qui fixent ces valeurs.
+- **Plusieurs modèles sont essayés l'un après l'autre** : l'offre gratuite plafonne chaque modèle séparément (environ 20 demandes par
+  jour), Google en retire régulièrement et les modèles sont parfois saturés (503). Un modèle saturé, épuisé, retiré ou trop lent
+  (20 s) fait passer au suivant, dans un budget de 52 s ; une clé refusée ou une photo refusée arrêtent tout de suite.
+- Les erreurs sont expliquées en français et proposent l'import d'un fichier (limite du jour atteinte, service saturé, pas de réseau…).
+- Un tableau lu est limité à 300 lignes × 100 colonnes.
+
+### À savoir
+
+- Avec l'offre **gratuite**, Google peut utiliser les données envoyées pour améliorer ses produits : la photo d'un tableau de commandes
+  (noms de clients, quantités) y est envoyée. Une offre payante change ces conditions.
+- La lecture est de **bonne qualité mais pas infaillible** (chiffres qui se ressemblent, écriture à la main). Les cases incertaines
+  sont signalées, pas toutes les erreurs : c'est pourquoi l'appli demande de comparer avec la photo.
+- Tests : `tests/photo-*.test.ts` (réponse de Gemini simulée : repli entre modèles, erreurs, sécurité de la route, conversion en
+  tableau, cases douteuses, sauvegarde) et `e2e/photo.spec.ts` (parcours complet avec un faux service de lecture). La lecture réelle par
+  Gemini se vérifie à la main avec de vraies photos.

@@ -71,6 +71,43 @@ export default function HelpPage() {
           <p>Les cellules qui contiennent une formule ne sont jamais prises pour des quantités.</p>
         </Section>
 
+        <Section title="Importer le tableau en photo">
+          <p>
+            Si le bouton <strong>« Photo du tableau »</strong> est présent sur l&apos;écran d&apos;accueil, vous pouvez prendre le tableau en photo
+            (papier ou écran) au lieu d&apos;importer un fichier : l&apos;appli le reconstitue. Sans ce bouton, la lecture de photo n&apos;est pas
+            activée sur ce site (voir les Réglages).
+          </p>
+          <ol className="list-decimal space-y-1 pl-5">
+            <li>
+              <strong>Prenez la photo</strong> : le tableau en entier, bien à plat, de face, avec une bonne lumière et sans reflet. Les chiffres
+              doivent être lisibles à l&apos;œil nu. Photographiez seulement les clients et les produits de la semaine.
+            </li>
+            <li>
+              <strong>Attendez</strong> 10 à 30 secondes : la photo est lue sur Internet. Le bouton « Annuler » abandonne la lecture.
+            </li>
+            <li>
+              <strong>Comparez avec la photo</strong> : la lecture peut se tromper, surtout sur les chiffres qui se ressemblent (1 et 7, 3 et 8,
+              5 et 6). Les cases dont elle n&apos;est <strong>pas sûre</strong> sont en <strong>orange</strong> : touchez-en une, regardez la
+              photo (bouton « Voir la photo »), puis corrigez la quantité ou confirmez-la (« Oui, c&apos;est bien 5 »).
+            </li>
+            <li>
+              <strong>Relisez aussi les cases qui ne sont pas orange</strong> : une erreur n&apos;est pas toujours signalée. Le bouton de départ
+              s&apos;appelle « J&apos;ai comparé avec la photo : tout est correct, commencer » pour vous le rappeler.
+            </li>
+          </ol>
+          <p>
+            Ensuite, tout se passe comme avec un fichier : les mêmes règles s&apos;appliquent (ligne « TOTAL », produits marqués *, colonnes sans
+            titre…).
+          </p>
+          <p className="text-sm text-muted">
+            <strong>À savoir.</strong> La photo est envoyée à Google (service Gemini) pour être lue. Avec l&apos;offre gratuite, Google peut
+            s&apos;en servir pour améliorer ses produits : évitez de photographier des informations personnelles. L&apos;appli ne garde qu&apos;une
+            copie réduite de la photo, sur ce téléphone, pour la comparer avec le tableau ; elle disparaît quand vous importez un autre tableau ou
+            effacez les données. L&apos;offre gratuite est limitée (environ 20 photos par jour) : au-delà, importez un fichier Excel ou CSV, ou
+            réessayez le lendemain.
+          </p>
+        </Section>
+
         <Section title="Vérifier">
           <ul className="list-disc space-y-1 pl-5">
             <li>Touchez une case pour la changer : boutons + et −, ou tapez le nombre.</li>
@@ -222,7 +259,10 @@ export default function HelpPage() {
             </li>
             <li>La voix qui parle, elle, fonctionne sans Internet si une voix française est installée sur l&apos;appareil.</li>
             <li>Il faut un navigateur récent : Chrome 111 ou plus pour Android (Play Store), Safari 16.4 ou plus pour iPhone.</li>
-            <li>Tout est enregistré uniquement sur cet appareil. Changer de téléphone demande de réimporter le fichier.</li>
+            <li>
+              Tout est enregistré uniquement sur cet appareil (seule la photo d&apos;un tableau est envoyée à Google, le temps d&apos;être lue).
+              Changer de téléphone demande de réimporter le tableau.
+            </li>
           </ul>
         </Section>
       </Page>
