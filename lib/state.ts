@@ -109,7 +109,12 @@ export function reduce(state: AppState, action: Action): AppState {
           version: 1,
           importedAt: action.importedAt,
           ...(action.photo
-            ? { source: "photo" as const, flagged: action.photo.flagged, ...(action.photo.note ? { note: action.photo.note } : {}) }
+            ? {
+                source: "photo" as const,
+                flagged: action.photo.flagged,
+                totalsCheck: true as const,
+                ...(action.photo.note ? { note: action.photo.note } : {}),
+              }
             : {}),
           status: "verifying",
           position: null,

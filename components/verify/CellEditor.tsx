@@ -6,7 +6,7 @@ import { CameraIcon, CheckIcon, MinusIcon, PlusIcon } from "@/components/icons";
 import { Banner, Button } from "@/components/ui";
 import { cellKey, columnLabel, isUnsure, rowLabel } from "@/lib/analysis";
 import { formatQuantity } from "@/lib/format";
-import { COLUMN_REASONS, displayValue, issueMessage, ROW_REASONS } from "@/lib/labels";
+import { COLUMN_REASONS, displayValue, issueMessage, ROW_REASONS, totalMessage } from "@/lib/labels";
 import { canKeep, checkCell, cleanIntegerText } from "@/lib/rules";
 import type { CellValue } from "@/lib/types";
 
@@ -38,6 +38,9 @@ export function CellEditor({ r, c, onClose, onJump, onShowPhoto }: Props) {
   const unsure = isUnsure(session, r, c);
   const fromPhoto = session.source === "photo";
   const pendingHere = analysis.pending.some((p) => p.r === r && p.c === c);
+  // Cette case est un total, lu sur la photo, qui ne tombe pas juste avec la somme des quantités lues de sa colonne.
+  const wrongTotal = analysis.issues.find((i) => i.r === r && i.c === c && i.kind === "total");
+  const isTotalRow = rowStatus.reason === "total";
   const base = typeof value === "number" && Number.isFinite(value) ? value : 0;
   const integerText = cleanIntegerText(value);
   const nextPending = analysis.pending.find((p) => !(p.r === r && p.c === c));
@@ -69,7 +72,7 @@ export function CellEditor({ r, c, onClose, onJump, onShowPhoto }: Props) {
               set(digits === "" ? null : Number(digits));
             }}
             className={`h-20 w-32 min-w-0 rounded-2xl border-2 text-center text-5xl font-black tabular-nums placeholder:text-2xl ${
-              (issue && !confirmed) || unsure ? "border-warn bg-warn-soft" : "border-line bg-surface-2"
+              (issue && !confirmed) || unsure || (wrongTotal && !confirmed) ? "border-warn bg-warn-soft" : "border-line bg-surface-2"
             }`}
           />
           <Button variant="secondary" size="xl" aria-label="Plus un" className="!px-6" onClick={() => set(Math.floor(base) + 1)}>
@@ -83,6 +86,19 @@ export function CellEditor({ r, c, onClose, onJump, onShowPhoto }: Props) {
             {issueMessage("uncertain", value)}
           </Banner>
         )}
+        {wrongTotal && !confirmed && (
+          <Banner tone="warn" data-testid="total-banner">
+            {totalMessage(wrongTotal.value as number, wrongTotal.expected ?? 0)}
+          </Banner>
+        )}
+        {wrongTotal && confirmed && (
+          <Banner tone="ok" icon={false}>
+            <span className="flex items-center gap-2 font-semibold">
+              <CheckIcon className="text-xl" />
+              Total gardé tel quel : {displayValue(value)}
+            </span>
+          </Banner>
+        )}
         {issue && confirmed && (
           <Banner tone="ok" icon={false}>
             <span className="flex items-center gap-2 font-semibold">
@@ -91,7 +107,13 @@ export function CellEditor({ r, c, onClose, onJump, onShowPhoto }: Props) {
             </span>
           </Banner>
         )}
-        {ignored && (
+        {ignored && isTotalRow && (
+          <Banner tone="info">
+            C&apos;est la ligne des totaux : elle n&apos;est pas préparée.
+            {fromPhoto ? " Elle sert à vérifier que les quantités lues sont justes." : ""}
+          </Banner>
+        )}
+        {ignored && !isTotalRow && (
           <Banner tone="info">
             {!rowStatus.active && rowStatus.reason
               ? `Ce client est ignoré (${ROW_REASONS[rowStatus.reason].short}).`
@@ -130,7 +152,7 @@ export function CellEditor({ r, c, onClose, onJump, onShowPhoto }: Props) {
               {value === null ? "Oui, cette case est vide" : `Oui, c'est bien ${displayValue(value)}`}
             </Button>
           )}
-          {canKeep(issue) && !confirmed && (
+          {(canKeep(issue) || wrongTotal) && !confirmed && (
             <Button
               variant="warn"
               size="lg"
@@ -139,7 +161,7 @@ export function CellEditor({ r, c, onClose, onJump, onShowPhoto }: Props) {
                 advance();
               }}
             >
-              Garder {displayValue(value)} tel quel
+              {wrongTotal ? `Garder le total ${displayValue(value)} tel quel` : `Garder ${displayValue(value)} tel quel`}
             </Button>
           )}
           {integerText !== null && (
@@ -154,7 +176,7 @@ export function CellEditor({ r, c, onClose, onJump, onShowPhoto }: Props) {
               Convertir « {displayValue(value)} » en nombre ({formatQuantity(integerText)})
             </Button>
           )}
-          {value !== null && value !== 0 && (
+          {value !== null && value !== 0 && !isTotalRow && (
             <Button
               variant="secondary"
               size="lg"

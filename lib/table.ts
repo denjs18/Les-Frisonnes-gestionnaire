@@ -18,7 +18,10 @@ export interface CellView {
   issue: CellIssue | null;
 }
 
-/** `unsure` : la lecture de la photo n'est pas sûre pour cette case et personne ne l'a encore confirmée ni corrigée (voir `isUnsure`). */
+/**
+ * `unsure` : la lecture de la photo n'est pas sûre pour cette case et personne ne l'a encore confirmée ni corrigée (voir `isUnsure`).
+ * `total` : cette case de la ligne TOTAL ne tombe pas juste avec la somme des quantités lues (elle se signale même si la ligne est ignorée).
+ */
 export function cellView(
   value: CellValue,
   analysis: Analysis,
@@ -26,8 +29,10 @@ export function cellView(
   c: number,
   confirmed: boolean,
   unsure = false,
+  total = false,
 ): CellView {
   const text = displayValue(value);
+  if (total) return { text, tone: confirmed ? "kept" : "warn", issue: "total" };
   if (!analysis.rows[r].active || !analysis.columns[c].active) {
     return { text, tone: "inactive", issue: checkCell(value).issue };
   }

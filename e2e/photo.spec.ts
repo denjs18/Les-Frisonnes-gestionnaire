@@ -7,12 +7,13 @@ const PHOTO_KEY = "prepa-commandes:v1:photo";
 /**
  * Ce que le service de lecture renvoie pour la photo de ces tests (la vraie lecture est jouée par Gemini côté serveur : ici on
  * remplace la réponse du site, la lecture elle-même est testée à part). Cases douteuses : Biocoop/Yaourt (lu 5), Biocoop/Fromage
- * blanc (lu vide) et Marché/Fromage blanc (lu 4).
+ * blanc (lu vide) et Marché/Fromage blanc (lu 4, alors que la photo dit 5 : le total du Fromage blanc, 8, ne tombe donc pas juste
+ * avec les quantités lues, qui font 7).
  */
 const READING = {
   rows: [
     ["Clients", "Yaourt nature 0.5L", "Fromage blanc", "Bleu *"],
-    ["TOTAL", "9", "7", "2"],
+    ["TOTAL", "9", "8", "2"],
     ["Nature Champs", "4", "3", "1"],
     ["Biocoop", "5", "", "1"],
     ["Marché", "", "4", ""],
@@ -99,13 +100,16 @@ test.describe("importer le tableau depuis une photo", () => {
     expect(body.length).toBeGreaterThan(100);
     expect(headers["x-access-code"]).toBeUndefined();
 
-    // Le tableau est reconstitué avec les mêmes règles qu'un fichier (TOTAL et produit * ignorés), trois cases à confirmer.
-    await expect(page.getByTestId("summary")).toContainText("2 produits · 3 clients · 3 valeurs à vérifier");
+    // Le tableau est reconstitué avec les mêmes règles qu'un fichier (TOTAL et produit * ignorés) : trois cases douteuses, et le total
+    // du Fromage blanc (8) qui ne tombe pas juste avec les quantités lues (7).
+    await expect(page.getByTestId("summary")).toContainText("2 produits · 3 clients · 4 valeurs à vérifier");
     await expect(page.getByText("Tableau lu sur une photo", { exact: true })).toBeVisible();
     await expect(page.getByTestId("photo-banner")).toContainText("Comparez chaque ligne avec la photo");
     await expect(page.getByTestId("photo-note")).toContainText("Le bas de la photo est un peu flou.");
-    await expect(orangeCells(page)).toHaveCount(3);
+    await expect(orangeCells(page)).toHaveCount(4);
     await expect(page.locator('[data-cell="2:1"]')).toHaveText("?"); // lu vide mais douteux
+    await expect(page.locator('[data-cell="0:1"]')).toHaveText("8"); // le total qui ne tombe pas juste
+    await expect(page.getByRole("button", { name: "TOTAL, Fromage blanc : 8, à vérifier" })).toBeVisible();
     await expect(startButton(page)).toBeDisabled();
     await expect(page.getByRole("button", { name: "Tout est correct, commencer", exact: true })).toHaveCount(0);
     await shot(page, "51-photo-verification");
@@ -124,13 +128,15 @@ test.describe("importer le tableau depuis une photo", () => {
     await expect(page.getByTestId("unsure-banner")).toContainText("lue : vide");
     await page.getByRole("button", { name: "Oui, cette case est vide" }).click();
 
-    // Puis Marché / Fromage blanc : lue 4, corrigée en 5 d'après la photo.
+    // Puis Marché / Fromage blanc : lue 4, corrigée en 5 d'après la photo. La somme des quantités lues (8) rejoint alors le total de
+    // la photo : le doute sur le total se lève tout seul.
     await expect(editor(/^Marché · Fromage blanc$/)).toBeVisible();
     await expect(page.getByText("Valeur lue sur la photo :")).toHaveCount(0); // pas encore modifiée
     await page.getByRole("button", { name: "Plus un" }).click();
     await expect(page.getByRole("textbox", { name: "Quantité" })).toHaveValue("5");
     await expect(page.getByTestId("unsure-banner")).toHaveCount(0); // corrigée : plus de doute
     await expect(page.getByText("Valeur lue sur la photo :")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Valeur suivante à vérifier/ })).toHaveCount(0); // le total est réglé aussi
     await page.getByRole("button", { name: "OK" }).click();
 
     await expect(page.getByTestId("summary")).toContainText("0 valeur à vérifier");
@@ -165,7 +171,7 @@ test.describe("importer le tableau depuis une photo", () => {
     await page.getByRole("button", { name: "Moins un" }).click(); // retour à la valeur lue
     await expect(unsure).toBeVisible();
     await page.getByRole("button", { name: "OK" }).click();
-    await expect(orangeCells(page)).toHaveCount(3);
+    await expect(orangeCells(page)).toHaveCount(4);
   });
 
   test("« Rétablir » ramène la valeur lue, et le doute avec elle", async ({ page }) => {
@@ -190,7 +196,8 @@ test.describe("importer le tableau depuis une photo", () => {
     // La case est réglée : la fenêtre passe à la première case encore douteuse.
     await expect(page.getByRole("dialog", { name: /^Biocoop · Yaourt nature 0\.5L$/ })).toBeVisible();
     await page.getByRole("button", { name: "OK" }).click();
-    await expect(page.getByTestId("summary")).toContainText("2 valeurs à vérifier");
+    // Restent : Biocoop / Yaourt, Biocoop / Fromage blanc, et le total du Fromage blanc (8 contre 3 : la quantité mise à 0 ne s'y ajoute plus).
+    await expect(page.getByTestId("summary")).toContainText("3 valeurs à vérifier");
     await expect(page.locator('[data-cell="3:1"]')).toHaveText("0");
   });
 
@@ -200,10 +207,95 @@ test.describe("importer le tableau depuis une photo", () => {
     await page.locator('[data-cell="2:0"]').click();
     await page.getByRole("button", { name: "Oui, c'est bien 5" }).click();
     await page.getByRole("button", { name: "Fermer" }).click();
-    await expect(orangeCells(page)).toHaveCount(2);
+    await expect(orangeCells(page)).toHaveCount(3);
     await page.reload();
-    await expect(page.getByTestId("summary")).toContainText("2 valeurs à vérifier");
+    await expect(page.getByTestId("summary")).toContainText("3 valeurs à vérifier");
     await expect(page.getByTestId("photo-banner")).toBeVisible();
+  });
+});
+
+test.describe("les totaux de la photo sont comparés aux quantités lues", () => {
+  /** Rien n'est signalé douteux par la lecture, mais le total du Fromage blanc (9) ne correspond pas aux quantités lues (3 + 4 = 7). */
+  const SILENT = {
+    ...READING,
+    uncertain: [],
+    message: "",
+    rows: [
+      ["Clients", "Yaourt nature 0.5L", "Fromage blanc", "Bleu *"],
+      ["TOTAL", "9", "9", "2"],
+      ["Nature Champs", "4", "3", "1"],
+      ["Biocoop", "5", "", "1"],
+      ["Marché", "", "4", ""],
+    ],
+  };
+  const totalCell = (page: Page) => page.locator('[data-cell="0:1"]');
+
+  test("un écart est signalé sur la ligne TOTAL, même quand la lecture n'avait aucun doute", async ({ page }) => {
+    await mockPhotoService(page, { reply: { json: SILENT } });
+    await importPhoto(page);
+    await expect(page.getByTestId("summary")).toContainText("1 valeur à vérifier");
+    await expect(orangeCells(page)).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "TOTAL, Fromage blanc : 9, à vérifier" })).toBeVisible();
+    await expect(startButton(page)).toBeDisabled();
+
+    await page.getByRole("button", { name: "Vérifier la première" }).click();
+    const editor = page.getByRole("dialog", { name: /^TOTAL · Fromage blanc$/ });
+    await expect(editor).toBeVisible();
+    await expect(page.getByTestId("total-banner")).toContainText("le total de ce produit est 9");
+    await expect(page.getByTestId("total-banner")).toContainText("la somme des quantités lues est 7");
+    await expect(editor).toContainText("C'est la ligne des totaux");
+    await expect(editor.getByRole("button", { name: "Mettre à 0 (sauter ce client)" })).toHaveCount(0);
+    await shot(page, "55-photo-total");
+
+    // Si tout est juste d'après la photo, on garde le total tel quel.
+    await editor.getByRole("button", { name: "Garder le total 9 tel quel" }).click();
+    await expect(editor).toHaveCount(0);
+    await expect(page.getByTestId("summary")).toContainText("0 valeur à vérifier");
+    await expect(startButton(page)).toBeEnabled();
+  });
+
+  test("corriger une quantité pour que la somme tombe juste règle le total tout seul", async ({ page }) => {
+    await mockPhotoService(page, { reply: { json: SILENT } });
+    await importPhoto(page);
+    await page.locator('[data-cell="3:1"]').click(); // Marché / Fromage blanc : lu 4, c'était 6 sur la photo
+    await expect(page.getByTestId("unsure-banner")).toHaveCount(0);
+    await page.getByRole("button", { name: "Plus un" }).click();
+    await page.getByRole("button", { name: "Plus un" }).click();
+    await expect(page.getByRole("textbox", { name: "Quantité" })).toHaveValue("6");
+    await page.getByRole("button", { name: "OK" }).click();
+    await expect(page.getByTestId("summary")).toContainText("0 valeur à vérifier");
+    await expect(orangeCells(page)).toHaveCount(0);
+    await expect(startButton(page)).toBeEnabled();
+  });
+
+  test("corriger le total lui-même le règle aussi, et le retaper faux le fait revenir", async ({ page }) => {
+    await mockPhotoService(page, { reply: { json: SILENT } });
+    await importPhoto(page);
+    await totalCell(page).click();
+    const quantity = page.getByRole("textbox", { name: "Quantité" });
+    await page.getByRole("button", { name: "Moins un" }).click();
+    await page.getByRole("button", { name: "Moins un" }).click();
+    await expect(quantity).toHaveValue("7");
+    await expect(page.getByTestId("total-banner")).toHaveCount(0);
+    await page.getByRole("button", { name: "Plus un" }).click();
+    await expect(quantity).toHaveValue("8");
+    await expect(page.getByTestId("total-banner")).toBeVisible();
+  });
+
+  test("le total gardé tel quel le reste après un rechargement", async ({ page }) => {
+    await mockPhotoService(page, { reply: { json: SILENT } });
+    await importPhoto(page);
+    await totalCell(page).click();
+    await page.getByRole("button", { name: "Garder le total 9 tel quel" }).click();
+    await page.reload();
+    await expect(page.getByTestId("summary")).toContainText("0 valeur à vérifier");
+    await totalCell(page).click();
+    await expect(page.getByRole("dialog").getByText("Total gardé tel quel : 9")).toBeVisible();
+  });
+
+  test("un fichier Excel ou CSV n'est pas concerné : ses totaux ne sont pas vérifiés", async ({ page }) => {
+    await importCsv(page, "Nom;Fromage;Yaourt\nTOTAL;99;99\nAlice;2;3\nBob;1;");
+    await expect(page.getByTestId("summary")).toContainText("0 valeur à vérifier");
   });
 });
 

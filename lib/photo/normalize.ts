@@ -70,3 +70,74 @@ export function normalizePhotoTable(raw: unknown): PhotoTable {
 
   return { rows: table, uncertain, message };
 }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Numéro de colonne donné par Gemini : un entier raisonnable, sinon rien. */
+function columnNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value < PHOTO_LIMITS.maxColumns * 2 ? value : null;
+}
+
+/**
+ * Met en forme la réponse de Gemini, qui est « creuse » : les colonnes numérotées avec leur titre, puis pour chaque ligne son nom
+ * et seulement ses cases non vides avec leur numéro de colonne (voir `PHOTO_PROMPT`). Reconstitue un tableau complet, puis le vérifie
+ * comme `normalizePhotoTable`.
+ *
+ * Deux valeurs données pour la même case ne sont pas départagées : elles sont réunies (« 5 / 6 ») et la case est signalée douteuse,
+ * car c'est le signe d'une valeur mal placée. Une réponse déjà en lignes de cellules est acceptée telle quelle.
+ */
+export function normalizeSparseTable(raw: unknown): PhotoTable {
+  if (!isRecord(raw) || !Array.isArray(raw.rows)) throw new PhotoError("unreadable", "La réponse de la lecture est inutilisable.");
+  if (raw.rows.some((row) => Array.isArray(row))) return normalizePhotoTable(raw);
+  if (raw.rows.length > PHOTO_LIMITS.maxRows * 2) throw new PhotoError("too-big", "Le tableau lu est beaucoup trop grand.");
+
+  const titles = new Map<number, string>();
+  for (const column of Array.isArray(raw.columns) ? raw.columns : []) {
+    if (!isRecord(column)) continue;
+    const col = columnNumber(column.col);
+    if (col !== null && !titles.has(col)) titles.set(col, cellText(column.title));
+  }
+  // Sans aucun titre de produit, le tableau est inutilisable (et la première ligne de clients serait prise pour les titres).
+  if (![...titles.values()].some((title) => title !== "")) {
+    const why = typeof raw.message === "string" && raw.message.trim() !== "" ? raw.message.replace(/\s+/g, " ").trim().slice(0, 300) : null;
+    throw new PhotoError("no-table", why ?? "Je ne vois pas de tableau lisible sur cette photo.");
+  }
+  let width = Math.max(...titles.keys()) + 1;
+
+  const clashes: [number, number][] = [];
+  const lines = raw.rows.map((row, index) => {
+    if (!isRecord(row)) throw new PhotoError("unreadable", "La réponse de la lecture est inutilisable.");
+    const cells = new Map<number, string>();
+    for (const cell of Array.isArray(row.cells) ? row.cells : []) {
+      if (!isRecord(cell)) continue;
+      const col = columnNumber(cell.col);
+      const text = cellText(cell.text);
+      // La colonne 0 est celle du nom de la ligne, déjà donné ; une case vide n'a pas à être listée.
+      if (col === null || col === 0 || text === "") continue;
+      width = Math.max(width, col + 1);
+      const before = cells.get(col);
+      if (before === undefined) {
+        cells.set(col, text);
+      } else {
+        cells.set(col, `${before} / ${text}`);
+        clashes.push([index + 1, col]);
+      }
+    }
+    return { label: cellText(row.label), cells };
+  });
+
+  const rows = [
+    Array.from({ length: width }, (_, col) => titles.get(col) ?? ""),
+    ...lines.map(({ label, cells }) => Array.from({ length: width }, (_, col) => (col === 0 ? label : (cells.get(col) ?? "")))),
+  ];
+
+  // Les numéros de ligne de Gemini ne comptent pas la ligne des titres : on la compte ici (elle est la ligne 0 du tableau complet).
+  const uncertain: unknown[] = [...clashes];
+  for (const item of Array.isArray(raw.uncertain) ? raw.uncertain : []) {
+    const pair = coordinates(item);
+    if (pair) uncertain.push([pair[0] + 1, pair[1]]);
+  }
+  return normalizePhotoTable({ rows, uncertain, message: raw.message });
+}

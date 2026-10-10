@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, POST } from "@/app/api/lire-photo/route";
 import { PHOTO_LIMITS } from "@/lib/photo/types";
+import { sparseAnswer } from "./helpers";
 
 const KEY = "cle-secrete-de-test-0123456789";
 const CODE = "frisonnes-2026";
@@ -10,7 +11,8 @@ const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70, 73, 70]);
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]);
 const WEBP = new Uint8Array([0x52, 0x49, 0x46, 0x46, 1, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]);
 
-const TABLE = { rows: [["Clients", "Yaourt", "Fromage"], ["Alice", "3", "2"]], uncertain: [[1, 1]], message: "" };
+const ROWS = [["Clients", "Yaourt", "Fromage"], ["Alice", "3", "2"]];
+const TABLE = sparseAnswer(ROWS, [[1, 1]]);
 const gemini = (content: unknown = TABLE) =>
   Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(content) }] } }] });
 const geminiError = (status: number) => Response.json({ error: { message: "erreur" } }, { status });
@@ -79,7 +81,7 @@ describe("/api/lire-photo : lire une photo (POST)", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(await json(response)).toEqual({
-      rows: TABLE.rows,
+      rows: ROWS,
       uncertain: [[1, 1]],
       message: null,
       model: "m1",

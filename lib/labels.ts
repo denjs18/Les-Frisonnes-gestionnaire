@@ -194,5 +194,12 @@ export function issueMessage(issue: CellIssue, value: CellValue): string {
       return `${shown} dépasse ${MAX_QUANTITY} : est-ce bien la bonne quantité ?`;
     case "uncertain":
       return `La lecture de la photo n'est pas sûre pour cette case (lue : ${shown === "" ? "vide" : shown}). Regardez la photo, puis corrigez la quantité ou confirmez-la.`;
+    case "total":
+      return "Ce total ne correspond pas à la somme des quantités lues.";
   }
+}
+
+/** Explication d'un total (lu sur la photo) qui ne tombe pas juste avec la somme des quantités lues de sa colonne. */
+export function totalMessage(claimed: number, expected: number): string {
+  return `Sur la photo, le total de ce produit est ${formatQuantity(claimed)}, mais la somme des quantités lues est ${formatQuantity(expected)}. Un chiffre est peut-être mal lu : regardez cette colonne sur la photo, corrigez une quantité (ou le total), ou gardez-les tels quels si tout est juste.`;
 }

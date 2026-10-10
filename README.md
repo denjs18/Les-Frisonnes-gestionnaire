@@ -149,10 +149,17 @@ activée).
 1. Le téléphone redresse la photo, la réduit (2000 px, JPEG) et l'envoie à `POST /api/lire-photo`, une fonction de Vercel
    (`app/api/lire-photo/route.ts`).
 2. Le serveur la transmet à l'**API Gemini** de Google avec la clé secrète, une consigne de **transcription fidèle** (rien n'est
-   corrigé ni calculé : `*`, `+`, `0,5`, `3*0,2`, ligne TOTAL… sont recopiés tels quels) et une réponse JSON stricte : les lignes du
-   tableau, la liste des cases dont la lecture est **incertaine**, et une remarque éventuelle (photo coupée, floue…).
+   corrigé ni calculé : `*`, `+`, `0,5`, `3*0,2`, ligne TOTAL… sont recopiés tels quels) et une réponse JSON stricte : les colonnes
+   numérotées avec leur titre, puis pour chaque ligne **seulement ses cases non vides** avec leur numéro de colonne (forme « creuse »),
+   la liste des cases dont la lecture est **incertaine**, et une remarque éventuelle (photo coupée, floue…). Le serveur reconstitue le
+   tableau complet. (Demander toutes les cases une à une décalait des lignes entières d'une colonne : 16 % de cases fausses sur un
+   tableau de la taille du vrai, 37 clients × 22 produits, contre 2,5 % avec la forme creuse.)
 3. L'appli suit alors le même chemin qu'un fichier (`RawGrid` → `buildModel` → règles d'exclusion), avec en plus :
    - les cases incertaines sont **orange** tant qu'on ne les a ni corrigées ni confirmées (« Oui, c'est bien 5 ») ;
+   - **la ligne TOTAL de la photo est comparée à la somme des quantités lues** de chaque produit (avec ou sans les clients marqués `*` :
+     dans le fichier d'origine la ligne TOTAL ne les compte pas). Un écart met la case TOTAL du produit en orange : c'est le signe d'une
+     quantité mal lue ou mal placée dans cette colonne, même quand la lecture n'avait signalé aucun doute. Il se règle en corrigeant une
+     quantité ou le total (l'écart disparaît tout seul quand la somme tombe juste), ou en gardant le total tel quel ;
    - une copie réduite de la photo est gardée **sur le téléphone** (`localStorage`) et se consulte à la vérification (« Voir la
      photo »), y compris depuis une case douteuse ; elle disparaît quand on importe un autre tableau ou qu'on efface les données ;
    - le bouton de départ devient « J'ai comparé avec la photo : tout est correct, commencer » : une erreur de lecture n'est pas
@@ -180,7 +187,9 @@ En local : un fichier `.env.local` (ignoré par git) contenant `GEMINI_API_KEY=�
   60 s par lecture) qui fixent ces valeurs.
 - **Plusieurs modèles sont essayés l'un après l'autre** : l'offre gratuite plafonne chaque modèle séparément (environ 20 demandes par
   jour), Google en retire régulièrement et les modèles sont parfois saturés (503). Un modèle saturé, épuisé, retiré ou trop lent
-  (20 s) fait passer au suivant, dans un budget de 52 s ; une clé refusée ou une photo refusée arrêtent tout de suite.
+  (32 s) fait passer au suivant, dans un budget de 52 s ; une clé refusée arrête tout de suite, et deux modèles qui refusent la
+  demande de suite (la photo est en cause) aussi. L'ordre (`lib/photo/gemini.ts`) vient d'essais sur un grand tableau : les plus
+  récents lisent nettement mieux que les plus anciens, gardés en secours.
 - Les erreurs sont expliquées en français et proposent l'import d'un fichier (limite du jour atteinte, service saturé, pas de réseau…).
 - Un tableau lu est limité à 300 lignes × 100 colonnes.
 
@@ -188,8 +197,11 @@ En local : un fichier `.env.local` (ignoré par git) contenant `GEMINI_API_KEY=�
 
 - Avec l'offre **gratuite**, Google peut utiliser les données envoyées pour améliorer ses produits : la photo d'un tableau de commandes
   (noms de clients, quantités) y est envoyée. Une offre payante change ces conditions.
-- La lecture est de **bonne qualité mais pas infaillible** (chiffres qui se ressemblent, écriture à la main). Les cases incertaines
-  sont signalées, pas toutes les erreurs : c'est pourquoi l'appli demande de comparer avec la photo.
+- La lecture est de **bonne qualité mais pas infaillible**. Sur un petit tableau (9 clients × 12 produits) elle est quasi parfaite ;
+  sur un tableau de la taille du vrai, fabriqué pour les essais, environ 2,5 % des cases étaient mal placées, le plus souvent
+  **décalées d'une colonne**, et la lecture n'en signalait aucune comme douteuse. Le contrôle des totaux les révèle, mais plus le
+  tableau est grand et serré, plus il y a à vérifier : les résultats sur de vraies photos (papier sans quadrillage, reflets…) restent à
+  constater. C'est pourquoi l'appli demande toujours de comparer avec la photo.
 - Tests : `tests/photo-*.test.ts` (réponse de Gemini simulée : repli entre modèles, erreurs, sécurité de la route, conversion en
   tableau, cases douteuses, sauvegarde) et `e2e/photo.spec.ts` (parcours complet avec un faux service de lecture). La lecture réelle par
   Gemini se vérifie à la main avec de vraies photos.

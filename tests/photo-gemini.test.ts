@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildRequest, DEFAULT_MODELS, parseModelList, readTableFromPhoto } from "@/lib/photo/gemini";
 import { PhotoError } from "@/lib/photo/types";
+import { sparseAnswer } from "./helpers";
 
 const KEY = "cle-secrete-de-test-0123456789";
 const IMAGE = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
-const TABLE = { rows: [["Clients", "Yaourt", "Fromage"], ["Alice", "3", "2"]], uncertain: [{ row: 1, col: 1 }], message: "" };
+const ROWS = [["Clients", "Yaourt", "Fromage"], ["Alice", "3", "2"]];
+/** Ce que Gemini répond : le tableau en forme « creuse », avec la case Alice / Yaourt jugée douteuse. */
+const TABLE = sparseAnswer(ROWS, [[1, 1]]);
 
 /** Ce que Gemini renvoie quand tout va bien. */
 const answer = (content: unknown = TABLE) =>
@@ -91,7 +94,7 @@ describe("lecture d'une photo par Gemini", () => {
       const text = JSON.stringify(TABLE);
       const split = Response.json({ candidates: [{ content: { parts: [{ text: text.slice(0, 10) }, { text: text.slice(10) }] } }] });
       const { fetchImpl } = fakeFetch(split);
-      expect((await read(fetchImpl)).rows).toEqual(TABLE.rows);
+      expect((await read(fetchImpl)).rows).toEqual(ROWS);
     });
 
     it("aucune réponse de Gemini : inutilisable, sans essayer d'autres modèles", async () => {
@@ -195,10 +198,17 @@ describe("lecture d'une photo par Gemini", () => {
       expect(calls).toHaveLength(1);
     });
 
-    it("autre 400 (photo refusée) : « bad-request », sans réessayer", async () => {
+    it("autre 400 (photo refusée) : un deuxième modèle essaie, puis « bad-request » sans gaspiller les autres", async () => {
       const { fetchImpl, calls } = fakeFetch(fail(400, "Unable to process input image."));
       expect((await failureOf(read(fetchImpl))).code).toBe("bad-request");
-      expect(calls).toHaveLength(1);
+      expect(calls).toHaveLength(2); // il y a trois modèles dans le test : le troisième n'est pas sollicité
+    });
+
+    it("un modèle qui refuse la demande alors que le suivant l'accepte : la lecture réussit", async () => {
+      const { fetchImpl, calls } = fakeFetch(fail(400, "Invalid JSON payload received. Unknown name propertyOrdering"), answer());
+      const result = await read(fetchImpl);
+      expect(result.model).toBe("m2");
+      expect(calls).toHaveLength(2);
     });
   });
 
@@ -257,11 +267,13 @@ describe("lecture d'une photo par Gemini", () => {
   });
 
   describe("liste de modèles", () => {
-    it("par défaut : la liste du projet, du plus récent testé au plus général", () => {
+    it("par défaut : la liste du projet, de la plus fiable au secours (l'alias tenu à jour par Google en dernier)", () => {
       expect(parseModelList(undefined)).toEqual(DEFAULT_MODELS);
       expect(parseModelList("")).toEqual(DEFAULT_MODELS);
       expect(DEFAULT_MODELS.length).toBeGreaterThan(2);
+      expect(DEFAULT_MODELS[0]).toBe("gemini-3.7-flash");
       expect(DEFAULT_MODELS.at(-1)).toBe("gemini-flash-latest");
+      expect(new Set(DEFAULT_MODELS).size).toBe(DEFAULT_MODELS.length);
     });
 
     it("GEMINI_MODEL remplace la liste (séparée par des virgules)", () => {

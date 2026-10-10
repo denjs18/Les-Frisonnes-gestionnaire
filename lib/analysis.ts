@@ -24,6 +24,8 @@ export interface Worksheet {
    * une telle case reste à vérifier tant qu'elle garde la valeur lue et n'a pas été confirmée (voir `isUnsure`).
    */
   flagged?: Record<string, true>;
+  /** Vrai pour un tableau lu sur une photo : le total de la ligne TOTAL doit alors être la somme des quantités lues (voir `analyze`). */
+  totalsCheck?: true;
   /** Colonnes réactivées ("on") ou désactivées ("off") à la main, par position. */
   columnOverrides: Record<number, Override>;
   rowOverrides: Record<number, Override>;
@@ -54,6 +56,8 @@ export interface Issue {
   kind: CellIssue;
   value: CellValue;
   confirmed: boolean;
+  /** Pour un total qui ne tombe pas juste (« total ») : la somme des quantités lues. */
+  expected?: number;
 }
 
 export interface Analysis {
@@ -89,6 +93,22 @@ export function newWorksheet(model: SheetModel): Worksheet {
     columnOverrides: {},
     rowOverrides: {},
   };
+}
+
+/**
+ * Somme des quantités entières d'une colonne, sans la ligne des totaux : `all` avec toutes les lignes, `noStar` sans celles dont le
+ * nom contient une étoile (dans le fichier d'origine, la ligne TOTAL ne compte pas les lignes marquées *).
+ */
+function columnSums(ws: Worksheet, c: number, totalRow: number): { all: number; noStar: number } {
+  let all = 0;
+  let noStar = 0;
+  ws.model.rows.forEach((row, r) => {
+    const value = ws.cells[r][c];
+    if (r === totalRow || typeof value !== "number" || !Number.isInteger(value) || value <= 0) return;
+    all += value;
+    if (!hasStar(row.name)) noStar += value;
+  });
+  return { all, noStar };
 }
 
 export function columnLabel(column: ColumnInfo): string {
@@ -182,6 +202,29 @@ export function analyze(ws: Worksheet, options: AnalysisOptions): Analysis {
         value,
         confirmed: Boolean(ws.confirmed[cellKey(r, c)]) && canKeep(issue) && typeof value === "number",
       });
+    }
+  }
+
+  // 4. Photo : le total lu sur la photo doit être la somme des quantités lues. Un écart trahit un chiffre mal lu, même quand la lecture
+  // n'avait signalé aucun doute. Les produits exclus par leur nom (étoile, sans titre…) ne sont pas vérifiés ; ceux qui paraissent
+  // sans quantité le sont, puisqu'un total non nul face à une colonne vide signale des quantités manquées.
+  if (ws.totalsCheck) {
+    const totalRow = model.rows.findIndex((row) => isTotalName(row.name));
+    if (totalRow >= 0) {
+      for (const c of candidateCols) {
+        const claimed = cells[totalRow][c];
+        if (typeof claimed !== "number" || !Number.isInteger(claimed) || claimed < 0) continue;
+        const sums = columnSums(ws, c, totalRow);
+        if (claimed === sums.noStar || claimed === sums.all) continue;
+        issues.push({
+          r: totalRow,
+          c,
+          kind: "total",
+          value: claimed,
+          confirmed: Boolean(ws.confirmed[cellKey(totalRow, c)]),
+          expected: sums.noStar,
+        });
+      }
     }
   }
 

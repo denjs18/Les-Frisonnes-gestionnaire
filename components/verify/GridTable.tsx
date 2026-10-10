@@ -31,6 +31,8 @@ interface Props {
 export function GridTable({ session, analysis, focus, onCell, onColumn, onRow }: Props) {
   const { model } = session;
   const containerRef = useRef<HTMLDivElement>(null);
+  // Les totaux (ligne TOTAL de la photo) qui ne tombent pas juste avec la somme des quantités lues.
+  const wrongTotals = new Set(analysis.issues.filter((issue) => issue.kind === "total").map((issue) => cellKey(issue.r, issue.c)));
 
   useEffect(() => {
     if (!focus) return;
@@ -115,7 +117,15 @@ export function GridTable({ session, analysis, focus, onCell, onColumn, onRow }:
                   </button>
                 </th>
                 {model.columns.map((column, c) => {
-                  const view = cellView(session.cells[r][c], analysis, r, c, Boolean(session.confirmed[cellKey(r, c)]), isUnsure(session, r, c));
+                  const view = cellView(
+                    session.cells[r][c],
+                    analysis,
+                    r,
+                    c,
+                    Boolean(session.confirmed[cellKey(r, c)]),
+                    isUnsure(session, r, c),
+                    wrongTotals.has(cellKey(r, c)),
+                  );
                   const isFocus = focus?.r === r && focus?.c === c;
                   return (
                     <td key={c} className="h-px border-b border-line/60 p-0">

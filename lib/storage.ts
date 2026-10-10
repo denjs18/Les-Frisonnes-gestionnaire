@@ -75,6 +75,7 @@ export function parseSession(value: unknown): Session | null {
   if (value.source !== undefined && value.source !== "photo") return null;
   if (value.note !== undefined && typeof value.note !== "string") return null;
   if (value.flagged !== undefined && !(isRecord(value.flagged) && Object.values(value.flagged).every((v) => v === true))) return null;
+  if (value.totalsCheck !== undefined && value.totalsCheck !== true) return null;
   if (!["verifying", "preparing", "done"].includes(value.status as string)) return null;
   const position = value.position;
   if (

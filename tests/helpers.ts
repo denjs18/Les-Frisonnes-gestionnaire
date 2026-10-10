@@ -60,3 +60,21 @@ export function sampleRows(): Spec[][] {
     [null, null, null, null, F(1), null],
   ];
 }
+
+/**
+ * La réponse de Gemini pour un tableau donné en lignes de cellules : les colonnes numérotées, puis pour chaque ligne seulement ses
+ * cases non vides (la forme « creuse » demandée par `PHOTO_PROMPT`). `uncertain` compte les lignes à partir du tableau complet
+ * (titres = ligne 0), comme `PhotoTable` ; la réponse de Gemini, elle, ne compte pas la ligne des titres.
+ */
+export function sparseAnswer(rows: string[][], uncertain: [number, number][] = [], message = "") {
+  const [header, ...body] = rows;
+  return {
+    columns: header.map((title, col) => ({ col, title })),
+    rows: body.map((row) => ({
+      label: row[0],
+      cells: row.flatMap((text, col) => (col > 0 && text !== "" ? [{ col, text }] : [])),
+    })),
+    uncertain: uncertain.map(([row, col]) => ({ row: row - 1, col })),
+    message,
+  };
+}

@@ -96,6 +96,12 @@ export default function HelpPage() {
             </li>
           </ol>
           <p>
+            <strong>La ligne « TOTAL » sert de contrôle.</strong> Si elle figure sur la photo, l&apos;appli compare chaque total à la somme des
+            quantités qu&apos;elle a lues. Un total en <strong>orange</strong> veut dire qu&apos;une quantité de cette colonne est mal lue ou mal
+            placée (souvent décalée d&apos;une colonne) : regardez la colonne sur la photo, corrigez la quantité, ou gardez le total tel quel si
+            tout est juste. L&apos;écart disparaît tout seul quand la somme tombe juste.
+          </p>
+          <p>
             Ensuite, tout se passe comme avec un fichier : les mêmes règles s&apos;appliquent (ligne « TOTAL », produits marqués *, colonnes sans
             titre…).
           </p>

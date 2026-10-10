@@ -1,4 +1,4 @@
-import { normalizePhotoTable } from "./normalize";
+import { normalizeSparseTable } from "./normalize";
 import { PHOTO_PROMPT, PHOTO_RESPONSE_SCHEMA } from "./prompt";
 import { PhotoError, type PhotoReadResponse } from "./types";
 
@@ -6,8 +6,19 @@ import { PhotoError, type PhotoReadResponse } from "./types";
  * Les modèles essayés l'un après l'autre. Google en retire régulièrement (les « 2.5 » ne sont déjà plus offerts aux nouveaux
  * comptes) et l'offre gratuite plafonne chaque modèle séparément (20 demandes par jour) : on passe donc au suivant quand
  * un modèle est saturé, épuisé ou retiré. Le dernier est un alias que Google tient à jour.
+ *
+ * L'ordre vient d'essais sur un tableau de la taille du vrai (37 clients × 22 produits, 874 cases) : le 3.7 se trompe sur 2,5 % des
+ * cases, le 3.8 autant mais bien plus lentement (une minute, aux essais), le 3.6 sur 5,5 %, le 3.5 sur 19 % ; le 3 preview est le plus
+ * rapide (9 s) mais très irrégulier avec l'ancienne forme de réponse. Les derniers ne servent que de secours.
  */
-export const DEFAULT_MODELS = ["gemini-3-flash-preview", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest"];
+export const DEFAULT_MODELS = [
+  "gemini-3.7-flash",
+  "gemini-3-flash-preview",
+  "gemini-3.8-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+  "gemini-flash-latest",
+];
 
 /** La variable GEMINI_MODEL peut remplacer la liste (modèles séparés par des virgules). */
 export function parseModelList(value: string | undefined): string[] {
@@ -24,7 +35,7 @@ export interface ReadOptions {
   fetchImpl?: typeof fetch;
   /** Durée totale maximale (ms) : la fonction de Vercel s'arrête à 60 s. */
   budgetMs?: number;
-  /** Durée maximale d'un essai avec un modèle (ms). */
+  /** Durée maximale d'un essai avec un modèle (ms) : un grand tableau demande jusqu'à 20 ou 25 s. */
   attemptMs?: number;
   now?: () => number;
 }
@@ -60,7 +71,7 @@ function answerText(body: unknown): string {
 
 class Transient extends Error {
   constructor(
-    readonly kind: "quota" | "busy" | "gone" | "upstream",
+    readonly kind: "quota" | "busy" | "gone" | "upstream" | "rejected",
     message: string,
   ) {
     super(message);
@@ -91,7 +102,8 @@ async function ask(model: string, body: unknown, key: string, fetchImpl: typeof 
   if (response.status === 400) {
     // Un modèle qui ne connaît pas le réglage de réflexion : on le redemandera sans (voir readTableFromPhoto).
     if (/thinking/i.test(message)) throw new Transient("upstream", "thinking");
-    throw new PhotoError("bad-request", "Google n'a pas pu lire cette photo.");
+    // Soit la photo, soit ce modèle-ci refuse la demande : on essaie le suivant (l'échec se répète si c'est la photo, voir plus bas).
+    throw new Transient("rejected", `${model} : demande refusée`);
   }
   if (response.status === 404) throw new Transient("gone", `${model} : modèle retiré`);
   if (response.status === 429) throw new Transient("quota", `${model} : quota atteint`);
@@ -106,7 +118,7 @@ export async function readTableFromPhoto(image: Uint8Array, mimeType: string, op
   const fetchImpl = options.fetchImpl ?? fetch;
   const now = options.now ?? Date.now;
   const budget = options.budgetMs ?? 52_000;
-  const attempt = options.attemptMs ?? 20_000;
+  const attempt = options.attemptMs ?? 32_000;
   const models = options.models ?? DEFAULT_MODELS;
   const base64 = toBase64(image);
   const start = now();
@@ -127,13 +139,17 @@ export async function readTableFromPhoto(image: Uint8Array, mimeType: string, op
         } catch {
           throw new PhotoError("unreadable", "La réponse de la lecture est inutilisable.");
         }
-        return { ...normalizePhotoTable(raw), model };
+        return { ...normalizeSparseTable(raw), model };
       } catch (error) {
         if (!(error instanceof Transient)) throw error;
         // Seul le refus du réglage de réflexion se retente avec le même modèle (sans ce réglage) ; le reste passe au modèle suivant.
         if (error.message === "thinking" && withThinking) continue;
         failures.push(error.kind);
         log.push(error.message);
+        // Deux modèles de suite qui refusent la demande : c'est la photo (inutile de gaspiller les demandes gratuites des autres).
+        if (failures.filter((kind) => kind === "rejected").length >= 2) {
+          throw new PhotoError("bad-request", "Google n'a pas pu lire cette photo.", log.join(" | "));
+        }
         break;
       }
     }

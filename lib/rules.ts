@@ -16,9 +16,10 @@ export type RowReason = "total" | "empty-name" | "star" | "no-quantity" | "manua
 
 /**
  * Problème détecté sur une valeur (affichée en orange à la vérification).
- * « uncertain » : la valeur est une quantité valable, mais la lecture de la photo n'en était pas sûre (voir `isUnsure`).
+ * - « uncertain » : la valeur est une quantité valable, mais la lecture de la photo n'en était pas sûre (voir `isUnsure`) ;
+ * - « total » : le total de la ligne TOTAL lue sur la photo ne correspond pas à la somme des quantités lues (voir `analyze`).
  */
-export type CellIssue = "text" | "decimal" | "negative" | "too-big" | "uncertain";
+export type CellIssue = "text" | "decimal" | "negative" | "too-big" | "uncertain" | "total";
 
 export function hasStar(name: string): boolean {
   return name.includes("*");
@@ -60,9 +61,9 @@ export function hasContent(value: CellValue): boolean {
   return value.trim() !== "";
 }
 
-/** Un nombre à virgule ou très grand peut être gardé tel quel après confirmation. */
+/** Un nombre à virgule, très grand, ou un total qui ne tombe pas juste peut être gardé tel quel après confirmation. */
 export function canKeep(issue: CellIssue | null): boolean {
-  return issue === "decimal" || issue === "too-big";
+  return issue === "decimal" || issue === "too-big" || issue === "total";
 }
 
 /**
