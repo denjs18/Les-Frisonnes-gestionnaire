@@ -9,11 +9,11 @@ export class ImportError extends Error {
 }
 
 /**
- * Une source de tableau : lit une entrée (aujourd'hui un fichier Excel ou CSV, plus tard
- * peut-être la photo d'un tableau) et renvoie un `RawGrid`.
+ * Une source de tableau : lit un fichier (aujourd'hui Excel ou CSV) et renvoie un `RawGrid`.
  *
  * Tout le reste de l'appli (vérification, étapes, voix) part du `RawGrid` : ajouter une
- * nouvelle source ne demande donc d'écrire qu'un nouvel importeur et de l'ajouter à `importers`.
+ * nouvelle source de fichiers ne demande donc d'écrire qu'un nouvel importeur et de l'ajouter à `importers`.
+ * (La photo d'un tableau est lue par un service sur Internet, puis mise au même format : voir `lib/import/photo.ts`.)
  */
 export interface TableImporter {
   id: string;

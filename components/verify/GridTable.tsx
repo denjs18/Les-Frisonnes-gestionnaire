@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { cellKey, columnLabel, rowLabel, type Analysis } from "@/lib/analysis";
+import { cellKey, columnLabel, isUnsure, rowLabel, type Analysis } from "@/lib/analysis";
 import { COLUMN_REASONS, ROW_REASONS } from "@/lib/labels";
 import type { Session } from "@/lib/state";
 import { cellView, type CellTone } from "@/lib/table";
@@ -45,7 +45,9 @@ export function GridTable({ session, analysis, focus, onCell, onColumn, onRow }:
       role="region"
       aria-label="Tableau des quantités : clients en lignes, produits en colonnes"
       tabIndex={0}
-      className="max-h-[58dvh] overflow-auto overscroll-contain rounded-2xl border-2 border-line bg-surface"
+      // « isolate » : les titres collants du tableau (z-20, z-30) restent à l'intérieur de son cadre au lieu de passer par-dessus
+      // l'en-tête de la page et le bandeau collé en bas de l'écran.
+      className="isolate max-h-[58dvh] overflow-auto overscroll-contain rounded-2xl border-2 border-line bg-surface"
     >
       <table
         className="table-fixed border-separate border-spacing-0 text-sm"
@@ -113,7 +115,7 @@ export function GridTable({ session, analysis, focus, onCell, onColumn, onRow }:
                   </button>
                 </th>
                 {model.columns.map((column, c) => {
-                  const view = cellView(session.cells[r][c], analysis, r, c, Boolean(session.confirmed[cellKey(r, c)]));
+                  const view = cellView(session.cells[r][c], analysis, r, c, Boolean(session.confirmed[cellKey(r, c)]), isUnsure(session, r, c));
                   const isFocus = focus?.r === r && focus?.c === c;
                   return (
                     <td key={c} className="h-px border-b border-line/60 p-0">
@@ -128,7 +130,8 @@ export function GridTable({ session, analysis, focus, onCell, onColumn, onRow }:
                           isFocus ? "outline-4 -outline-offset-4 outline-primary" : ""
                         }`}
                       >
-                        {view.text}
+                        {/* Une case vide mais douteuse (a-t-elle vraiment été lue vide ?) reste visible. */}
+                        {view.text === "" && view.tone === "warn" ? "?" : view.text}
                       </button>
                     </td>
                   );

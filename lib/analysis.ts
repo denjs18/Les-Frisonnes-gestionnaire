@@ -19,6 +19,11 @@ export interface Worksheet {
   cells: CellValue[][];
   /** Valeurs douteuses que l'utilisateur a choisi de garder telles quelles, clé "ligne:colonne". */
   confirmed: Record<string, true>;
+  /**
+   * Cases dont la lecture sur la photo n'était pas sûre, clé "ligne:colonne" (positions du modèle). Fixé à l'import, jamais modifié :
+   * une telle case reste à vérifier tant qu'elle garde la valeur lue et n'a pas été confirmée (voir `isUnsure`).
+   */
+  flagged?: Record<string, true>;
   /** Colonnes réactivées ("on") ou désactivées ("off") à la main, par position. */
   columnOverrides: Record<number, Override>;
   rowOverrides: Record<number, Override>;
@@ -64,6 +69,15 @@ export interface Analysis {
 
 export function cellKey(r: number, c: number): string {
   return `${r}:${c}`;
+}
+
+/**
+ * Case dont la lecture sur la photo n'est pas sûre, et que l'utilisateur n'a ni confirmée ni corrigée.
+ * Corriger la valeur suffit à lever le doute (on a regardé la photo) ; retaper la valeur lue, non : il faut alors la confirmer.
+ */
+export function isUnsure(ws: Worksheet, r: number, c: number): boolean {
+  const key = cellKey(r, c);
+  return Boolean(ws.flagged?.[key]) && !ws.confirmed[key] && ws.cells[r]?.[c] === ws.model.cells[r]?.[c];
 }
 
 /** Point de départ après un import : valeurs de travail = valeurs importées, rien de modifié. */
@@ -158,7 +172,8 @@ export function analyze(ws: Worksheet, options: AnalysisOptions): Analysis {
   for (const r of activeRows) {
     for (const c of activeColumns) {
       const value = cells[r][c];
-      const { issue } = checkCell(value);
+      // Un vrai problème (texte, décimal…) passe avant le doute de lecture : le corriger ou le confirmer lève aussi ce doute.
+      const issue = checkCell(value).issue ?? (isUnsure(ws, r, c) ? "uncertain" : null);
       if (issue === null) continue;
       issues.push({
         r,

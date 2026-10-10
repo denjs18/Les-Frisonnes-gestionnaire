@@ -14,6 +14,7 @@ import type { Session } from "@/lib/state";
 import { currentStep, type View } from "@/lib/view";
 import { voice } from "@/lib/voice/service";
 import { InstallCard } from "./InstallCard";
+import { PhotoCard } from "./PhotoCard";
 
 function describe(session: Session, view: View): { title: string; detail: string } {
   const pending = view.analysis.pending.length;
@@ -96,7 +97,7 @@ export function HomeScreen() {
         <div className="flex items-center gap-4">
           <Logo size={104} />
           <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted">Fromagerie des Frisonnes</p>
+            <p className="break-words text-xs font-bold uppercase tracking-[0.18em] text-muted">Fromagerie des Frisonnes</p>
             <p className="mt-1 font-serif text-2xl font-bold leading-snug">
               Le total à sortir, puis chaque client, à voix haute.
             </p>
@@ -111,7 +112,7 @@ export function HomeScreen() {
               <h2 className="font-serif text-3xl font-bold leading-tight">{summary.title}</h2>
               <p className="text-lg font-semibold">{summary.detail}</p>
               <p className="mt-1 break-words text-sm text-muted">
-                {session.model.fileName} · importé le{" "}
+                {session.model.fileName} · {session.source === "photo" ? "lue" : "importé"} le{" "}
                 {new Date(session.importedAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
               </p>
             </div>
@@ -163,6 +164,8 @@ export function HomeScreen() {
             </Banner>
           )}
         </Card>
+
+        <PhotoCard />
 
         <InstallCard />
 

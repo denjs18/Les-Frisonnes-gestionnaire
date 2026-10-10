@@ -33,9 +33,9 @@ export default defineConfig({
     // Tout, sauf ce qui suppose un téléphone Android.
     { name: "telephone", testIgnore: /android\.spec\.ts/ },
     // Un Pixel 7 (Chrome sur Android) : le parcours complet, et ce qui est propre à Android.
-    { name: "android", use: android("Pixel 7"), testMatch: /(parcours|reprise|android)\.spec\.ts/ },
+    { name: "android", use: android("Pixel 7"), testMatch: /(parcours|reprise|android|photo)\.spec\.ts/ },
     // Un Android d'entrée de gamme à petit écran (360 × 640).
-    { name: "android-petit", use: android("Moto G4"), testMatch: /(parcours|reprise)\.spec\.ts/ },
+    { name: "android-petit", use: android("Moto G4"), testMatch: /(parcours|reprise|photo)\.spec\.ts/ },
   ],
   webServer: {
     command: `npm run start -- -p ${PORT}`,

@@ -10,6 +10,10 @@ export type Status = "verifying" | "preparing" | "done";
 export interface Session extends Worksheet {
   version: 1;
   importedAt: string;
+  /** Absent : le tableau vient d'un fichier Excel ou CSV. « photo » : il a été lu sur une photo (et doit être comparé avec elle). */
+  source?: "photo";
+  /** Remarque de la lecture de la photo (photo coupée, floue…). */
+  note?: string;
   status: Status;
   /** null = pas encore commencé (début du plan). */
   position: Position | null;
@@ -59,7 +63,7 @@ export const INITIAL_STATE: AppState = { loaded: false, session: null, settings:
 
 export type Action =
   | { type: "hydrate"; session: Session | null; settings: Settings }
-  | { type: "import"; model: SheetModel; importedAt: string }
+  | { type: "import"; model: SheetModel; importedAt: string; photo?: { flagged: Record<string, true>; note: string | null } }
   | { type: "setCell"; r: number; c: number; value: CellValue }
   | { type: "confirmCell"; r: number; c: number }
   | { type: "setColumnOverride"; c: number; value: Override | null }
@@ -104,6 +108,9 @@ export function reduce(state: AppState, action: Action): AppState {
           ...newWorksheet(action.model),
           version: 1,
           importedAt: action.importedAt,
+          ...(action.photo
+            ? { source: "photo" as const, flagged: action.photo.flagged, ...(action.photo.note ? { note: action.photo.note } : {}) }
+            : {}),
           status: "verifying",
           position: null,
         },

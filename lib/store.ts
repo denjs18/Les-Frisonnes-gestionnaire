@@ -1,4 +1,4 @@
-import { readSession, readSettings, writeSession, writeSettings, type StorageLike } from "./storage";
+import { readSession, readSettings, writePhotoCopy, writeSession, writeSettings, type StorageLike } from "./storage";
 import { INITIAL_STATE, reduce, type Action, type AppState } from "./state";
 
 export interface Store {
@@ -26,7 +26,11 @@ export function createStore(storage: StorageLike | null): Store {
     if (next === previous) return;
     state = next;
     if (action.type !== "hydrate") {
-      if (next.session !== previous.session) writeSession(storage, next.session);
+      if (next.session !== previous.session) {
+        writeSession(storage, next.session);
+        // La photo gardée n'a de sens que pour la préparation qui en vient (un nouveau fichier ou l'effacement la retire).
+        if (next.session?.source !== "photo") writePhotoCopy(storage, null);
+      }
       if (next.settings !== previous.settings) writeSettings(storage, next.settings);
     }
     listeners.forEach((listener) => listener());

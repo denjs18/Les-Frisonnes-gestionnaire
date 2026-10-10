@@ -2,9 +2,9 @@
 
 import { useApp } from "@/components/AppProvider";
 import { Sheet } from "@/components/controls";
-import { CheckIcon, MinusIcon, PlusIcon } from "@/components/icons";
+import { CameraIcon, CheckIcon, MinusIcon, PlusIcon } from "@/components/icons";
 import { Banner, Button } from "@/components/ui";
-import { cellKey, columnLabel, rowLabel } from "@/lib/analysis";
+import { cellKey, columnLabel, isUnsure, rowLabel } from "@/lib/analysis";
 import { formatQuantity } from "@/lib/format";
 import { COLUMN_REASONS, displayValue, issueMessage, ROW_REASONS } from "@/lib/labels";
 import { canKeep, checkCell, cleanIntegerText } from "@/lib/rules";
@@ -16,9 +16,11 @@ interface Props {
   onClose: () => void;
   /** Passe à une autre cellule (la prochaine valeur à vérifier). */
   onJump: (r: number, c: number) => void;
+  /** Ouvre la photo d'où vient le tableau (seulement pour un tableau lu sur une photo). */
+  onShowPhoto?: () => void;
 }
 
-export function CellEditor({ r, c, onClose, onJump }: Props) {
+export function CellEditor({ r, c, onClose, onJump, onShowPhoto }: Props) {
   const { state, view, dispatch } = useApp();
   const session = state.session;
   if (!session || !view || session.cells[r]?.[c] === undefined) return null;
@@ -33,6 +35,9 @@ export function CellEditor({ r, c, onClose, onJump }: Props) {
   const columnStatus = analysis.columns[c];
   const ignored = !rowStatus.active || !columnStatus.active;
 
+  const unsure = isUnsure(session, r, c);
+  const fromPhoto = session.source === "photo";
+  const pendingHere = analysis.pending.some((p) => p.r === r && p.c === c);
   const base = typeof value === "number" && Number.isFinite(value) ? value : 0;
   const integerText = cleanIntegerText(value);
   const nextPending = analysis.pending.find((p) => !(p.r === r && p.c === c));
@@ -64,7 +69,7 @@ export function CellEditor({ r, c, onClose, onJump }: Props) {
               set(digits === "" ? null : Number(digits));
             }}
             className={`h-20 w-32 min-w-0 rounded-2xl border-2 text-center text-5xl font-black tabular-nums placeholder:text-2xl ${
-              issue && !confirmed ? "border-warn bg-warn-soft" : "border-line bg-surface-2"
+              (issue && !confirmed) || unsure ? "border-warn bg-warn-soft" : "border-line bg-surface-2"
             }`}
           />
           <Button variant="secondary" size="xl" aria-label="Plus un" className="!px-6" onClick={() => set(Math.floor(base) + 1)}>
@@ -73,6 +78,11 @@ export function CellEditor({ r, c, onClose, onJump }: Props) {
         </div>
 
         {issue && !confirmed && <Banner tone="warn">{issueMessage(issue, value)}</Banner>}
+        {unsure && (
+          <Banner tone="warn" data-testid="unsure-banner">
+            {issueMessage("uncertain", value)}
+          </Banner>
+        )}
         {issue && confirmed && (
           <Banner tone="ok" icon={false}>
             <span className="flex items-center gap-2 font-semibold">
@@ -93,7 +103,8 @@ export function CellEditor({ r, c, onClose, onJump }: Props) {
         )}
         {value !== original && (
           <p className="flex flex-wrap items-center gap-2 text-sm text-muted">
-            Valeur du fichier : <strong className="text-fg">{original === null ? "vide" : `« ${displayValue(original)} »`}</strong>
+            {fromPhoto ? "Valeur lue sur la photo" : "Valeur du fichier"} :{" "}
+            <strong className="text-fg">{original === null ? "vide" : `« ${displayValue(original)} »`}</strong>
             <Button variant="ghost" className="!min-h-10" onClick={() => set(original)}>
               Rétablir
             </Button>
@@ -101,6 +112,24 @@ export function CellEditor({ r, c, onClose, onJump }: Props) {
         )}
 
         <div className="flex flex-col gap-2">
+          {onShowPhoto && (
+            <Button variant="secondary" size="lg" onClick={onShowPhoto}>
+              <CameraIcon className="text-2xl" />
+              Voir la photo
+            </Button>
+          )}
+          {unsure && issue === null && (
+            <Button
+              variant="warn"
+              size="lg"
+              onClick={() => {
+                dispatch({ type: "confirmCell", r, c });
+                advance();
+              }}
+            >
+              {value === null ? "Oui, cette case est vide" : `Oui, c'est bien ${displayValue(value)}`}
+            </Button>
+          )}
           {canKeep(issue) && !confirmed && (
             <Button
               variant="warn"
@@ -131,7 +160,7 @@ export function CellEditor({ r, c, onClose, onJump }: Props) {
               size="lg"
               onClick={() => {
                 set(0);
-                if (issue) advance();
+                if (pendingHere) advance();
               }}
             >
               Mettre à 0 (sauter ce client)
@@ -139,7 +168,7 @@ export function CellEditor({ r, c, onClose, onJump }: Props) {
           )}
           {nextPending && (
             <Button variant="secondary" size="lg" onClick={() => onJump(nextPending.r, nextPending.c)}>
-              Valeur suivante à vérifier ({analysis.pending.length - (issue && !confirmed ? 1 : 0)})
+              Valeur suivante à vérifier ({analysis.pending.length - (pendingHere ? 1 : 0)})
             </Button>
           )}
           <Button variant="primary" size="lg" onClick={onClose}>

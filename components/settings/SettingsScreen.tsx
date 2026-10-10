@@ -6,6 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import { Segmented, Switch } from "@/components/controls";
 import { ArrowRightIcon, PlusIcon, TrashIcon, VolumeIcon } from "@/components/icons";
 import { Banner, Button, Card, Page, ScreenHeader, Skeleton } from "@/components/ui";
+import { usePhotoStatus } from "@/hooks/usePhotoStatus";
 import { usePlatform } from "@/hooks/usePlatform";
 import { useRecognitionSupport, useVoice } from "@/hooks/useVoice";
 import { describeMic, describeSpeechProblem, SENSITIVITY_TEXT } from "@/lib/labels";
@@ -37,6 +38,7 @@ export function SettingsScreen() {
   const snapshot = useVoice();
   const recognition = useRecognitionSupport();
   const platform = usePlatform();
+  const photo = usePhotoStatus();
   const [tryName, setTryName] = useState("Yaourt nature 0.5L");
   const { settings } = state;
 
@@ -208,6 +210,18 @@ export function SettingsScreen() {
             label="Ignorer les produits marqués *"
             hint="Les colonnes dont le titre contient une étoile ne sont pas préparées."
           />
+          <div>
+            <p className="text-base font-bold">Photo du tableau</p>
+            <p className="text-sm text-muted" data-testid="settings-photo-status">
+              {photo === undefined
+                ? "Vérification…"
+                : photo === null
+                  ? "État inconnu : le site ne répond pas (pas de connexion ?)."
+                  : photo.available
+                    ? "Activée : le bouton « Photo du tableau » se trouve sur l'accueil. La photo est envoyée à Google (Gemini) pour être lue."
+                    : "Pas activée sur ce site (la clé du service de lecture n'est pas installée). Les fichiers Excel et CSV restent disponibles."}
+            </p>
+          </div>
         </Section>
 
         <Section title="Prononciation">

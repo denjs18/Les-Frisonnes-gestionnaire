@@ -192,5 +192,7 @@ export function issueMessage(issue: CellIssue, value: CellValue): string {
       return `${shown} est négatif. Tapez la bonne quantité, ou mettez 0 pour sauter ce client.`;
     case "too-big":
       return `${shown} dépasse ${MAX_QUANTITY} : est-ce bien la bonne quantité ?`;
+    case "uncertain":
+      return `La lecture de la photo n'est pas sûre pour cette case (lue : ${shown === "" ? "vide" : shown}). Regardez la photo, puis corrigez la quantité ou confirmez-la.`;
   }
 }

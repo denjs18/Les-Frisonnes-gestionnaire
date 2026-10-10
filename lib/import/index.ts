@@ -92,7 +92,7 @@ export async function importFile(file: File): Promise<SheetModel> {
   return importBytes(new Uint8Array(await file.arrayBuffer()), file.name);
 }
 
-/** Importeur actuel : fichier Excel ou CSV. Une future lecture de photo viendrait s'ajouter ici. */
+/** Importeur de fichiers : Excel ou CSV. (La lecture d'une photo passe par le serveur : voir `lib/photo` et `lib/import/photo.ts`.) */
 export const spreadsheetImporter: TableImporter = {
   id: "spreadsheet",
   label: "Fichier Excel ou CSV",

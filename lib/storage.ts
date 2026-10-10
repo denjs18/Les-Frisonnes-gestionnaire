@@ -13,6 +13,10 @@ export const SESSION_KEY = "prepa-commandes:v1:session";
 export const SETTINGS_KEY = "prepa-commandes:v1:settings";
 /** « 1 » quand la carte « Installer l'appli » de l'accueil a été masquée. */
 export const INSTALL_HIDDEN_KEY = "prepa-commandes:v1:install-hidden";
+/** Copie réduite de la photo d'où vient le tableau (data URL), pour la comparer avec lui ; elle ne survit pas à la préparation. */
+export const PHOTO_KEY = "prepa-commandes:v1:photo";
+/** Le code d'accès à la lecture de photo, quand le site en demande un. */
+export const PHOTO_CODE_KEY = "prepa-commandes:v1:photo-code";
 
 /** `localStorage` s'il est utilisable (il peut être absent ou interdit : navigation privée, cookies bloqués…). */
 export function browserStorage(): StorageLike | null {
@@ -67,6 +71,10 @@ export function parseSession(value: unknown): Session | null {
   if (!isRecord(value.confirmed) || !Object.values(value.confirmed).every((v) => v === true)) return null;
   if (!isOverrides(value.columnOverrides) || !isOverrides(value.rowOverrides)) return null;
   if (typeof value.importedAt !== "string") return null;
+  // Champs d'une préparation lue sur une photo (absents d'une préparation venue d'un fichier).
+  if (value.source !== undefined && value.source !== "photo") return null;
+  if (value.note !== undefined && typeof value.note !== "string") return null;
+  if (value.flagged !== undefined && !(isRecord(value.flagged) && Object.values(value.flagged).every((v) => v === true))) return null;
   if (!["verifying", "preparing", "done"].includes(value.status as string)) return null;
   const position = value.position;
   if (
@@ -135,9 +143,35 @@ export const writeSession = (storage: StorageLike | null, session: Session | nul
 export const readSettings = (storage: StorageLike | null): Settings => parseSettings(readJson(storage, SETTINGS_KEY));
 export const writeSettings = (storage: StorageLike | null, settings: Settings) => writeJson(storage, SETTINGS_KEY, settings);
 
+/** La copie gardée de la photo (data URL), ou null s'il n'y en a pas. */
+export function readPhotoCopy(storage: StorageLike | null): string | null {
+  try {
+    const value = storage?.getItem(PHOTO_KEY) ?? null;
+    return value !== null && value.startsWith("data:image/") ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Garde la photo (ou l'efface avec null). L'ancienne est toujours retirée d'abord : si le stockage est plein, mieux vaut
+ * n'avoir aucune photo que celle d'un autre tableau. Renvoie faux si la nouvelle n'a pas pu être enregistrée.
+ */
+export function writePhotoCopy(storage: StorageLike | null, dataUrl: string | null): boolean {
+  if (!storage) return false;
+  try {
+    storage.removeItem(PHOTO_KEY);
+    if (dataUrl === null) return true;
+    storage.setItem(PHOTO_KEY, dataUrl);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Efface toutes les données de l'appli enregistrées sur l'appareil. */
 export function clearStorage(storage: StorageLike | null): void {
-  for (const key of [SESSION_KEY, SETTINGS_KEY, INSTALL_HIDDEN_KEY]) {
+  for (const key of [SESSION_KEY, SETTINGS_KEY, INSTALL_HIDDEN_KEY, PHOTO_KEY, PHOTO_CODE_KEY]) {
     try {
       storage?.removeItem(key);
     } catch {

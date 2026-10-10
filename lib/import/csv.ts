@@ -92,21 +92,25 @@ export function parseCsv(text: string, delimiter: string): string[][] {
 }
 
 /**
- * Convertit un champ CSV.
+ * Convertit un texte en cellule (hors formule).
  *
  * Aucun nombre à virgule n'est interprété : « 2,5 » reste du texte (donc signalé en orange)
  * au lieu d'être lu « 25 » comme le font certains lecteurs de CSV.
  */
-function csvCell(field: string, isHeader: boolean): RawCell | null {
+export function textToCell(field: string, isHeader: boolean): RawCell | null {
   const text = cleanText(field);
   if (text === "") return null;
-  if (text.startsWith("=")) return { value: null, formula: true };
   if (/^-?\d+$/.test(text)) return { value: Number(text), formula: false };
   // Dans l'en-tête, un nombre est un total exporté en valeur (ex. le poids) : colonne à ignorer.
   if (isHeader && /^-?\d+[.,]\d+$/.test(text)) {
     return { value: Number(text.replace(",", ".")), formula: false };
   }
   return { value: text, formula: false };
+}
+
+/** Un champ CSV : comme `textToCell`, avec les formules (« =… »), qui ne sont jamais des quantités. */
+function csvCell(field: string, isHeader: boolean): RawCell | null {
+  return cleanText(field).startsWith("=") ? { value: null, formula: true } : textToCell(field, isHeader);
 }
 
 export function csvToGrid(text: string, sheetName = "CSV"): RawGrid {

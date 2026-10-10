@@ -1,21 +1,27 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useApp, useRequireSession } from "@/components/AppProvider";
 import { Switch } from "@/components/controls";
-import { AlertIcon, CheckIcon } from "@/components/icons";
+import { AlertIcon, CameraIcon, CheckIcon } from "@/components/icons";
 import { Banner, Button, Card, Page, ScreenHeader, Skeleton } from "@/components/ui";
+import { columnLabel, rowLabel } from "@/lib/analysis";
 import { count } from "@/lib/format";
+import { browserStorage, readPhotoCopy } from "@/lib/storage";
 import { voice } from "@/lib/voice/service";
+import { BottomBar } from "./BottomBar";
 import { CellEditor } from "./CellEditor";
 import { GridTable } from "./GridTable";
 import { IgnoredLists } from "./IgnoredLists";
 import { ItemSheet } from "./ItemSheet";
+import { PhotoSheet } from "./PhotoSheet";
 
 type Open =
   | { type: "cell"; r: number; c: number }
   | { type: "item"; kind: "column" | "row"; index: number }
+  /** La photo d'où vient le tableau ; `back` : la valeur qu'on était en train de vérifier, qui se rouvre à la fermeture. */
+  | { type: "photo"; back: { r: number; c: number } | null }
   | null;
 
 export function VerifyScreen() {
@@ -24,6 +30,13 @@ export function VerifyScreen() {
   const router = useRouter();
   const [open, setOpen] = useState<Open>(null);
   const session = state.session;
+  const fromPhoto = session?.source === "photo";
+  const importedAt = session?.importedAt;
+  // La copie de la photo est lue une fois par import (elle est lourde), et seulement quand l'écran est prêt (donc après l'affichage).
+  const photoCopy = useMemo(
+    () => (ready && fromPhoto && importedAt !== undefined ? readPhotoCopy(browserStorage()) : null),
+    [ready, fromPhoto, importedAt],
+  );
 
   if (!ready || !session || !view) {
     return (
@@ -64,7 +77,7 @@ export function VerifyScreen() {
             </span>
           </p>
           <p className="break-words text-sm text-muted">
-            {session.model.fileName} · feuille « {session.model.sheetName} »
+            {fromPhoto ? "Tableau lu sur une photo" : `${session.model.fileName} · feuille « ${session.model.sheetName} »`}
           </p>
           <Switch
             checked={state.settings.ignoreStar}
@@ -74,13 +87,33 @@ export function VerifyScreen() {
           />
         </Card>
 
+        {fromPhoto && (
+          <Banner tone="info" data-testid="photo-banner">
+            <p className="font-bold">Tableau lu sur une photo : la lecture peut se tromper.</p>
+            <p className="text-sm">Comparez chaque ligne avec la photo, surtout les chiffres, avant de commencer.</p>
+            {session.note && (
+              <p className="mt-1 text-sm" data-testid="photo-note">
+                Remarque de la lecture : {session.note}
+              </p>
+            )}
+            {photoCopy ? (
+              <Button variant="secondary" className="mt-2" onClick={() => setOpen({ type: "photo", back: null })}>
+                <CameraIcon className="text-xl" />
+                Voir la photo
+              </Button>
+            ) : (
+              <p className="mt-1 text-sm font-semibold">La photo n&apos;a pas pu être gardée sur cet appareil : comparez avec celle de votre téléphone.</p>
+            )}
+          </Banner>
+        )}
+
         {pending.length > 0 ? (
           <Banner tone="warn">
             <p className="font-bold">
               {count(pending.length, "valeur est douteuse", "valeurs sont douteuses")} (cellules orange).
             </p>
             <p className="text-sm">Corrigez-les ou confirmez-les : la préparation ne peut pas commencer avant.</p>
-            <Button variant="warn" className="mt-2" onClick={() => setOpen({ type: "cell", r: pending[0].r, c: pending[0].c })}>
+            <Button variant="warn" className="mt-2 max-w-full" onClick={() => setOpen({ type: "cell", r: pending[0].r, c: pending[0].c })}>
               <AlertIcon className="text-xl" />
               Vérifier la première
             </Button>
@@ -109,7 +142,7 @@ export function VerifyScreen() {
 
         <IgnoredLists />
 
-        <div className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-2 border-t border-line bg-bg px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_14px_-12px_rgb(0_0_0/0.35)]">
+        <BottomBar>
           {blocked && (
             <p role="status" className="text-center text-sm font-bold text-warn-text">
               {blocked}
@@ -133,11 +166,12 @@ export function VerifyScreen() {
               </Button>
             </>
           ) : (
-            <Button variant="ok" size="xl" className="w-full" disabled={!canStart} onClick={() => begin("start")}>
-              Tout est correct, commencer
+            // Le libellé d'un tableau lu sur une photo est long : un cran plus petit, pour qu'il tienne sur deux lignes.
+            <Button variant="ok" size="xl" className={`w-full ${fromPhoto ? "!text-xl" : ""}`} disabled={!canStart} onClick={() => begin("start")}>
+              {fromPhoto ? "J'ai comparé avec la photo : tout est correct, commencer" : "Tout est correct, commencer"}
             </Button>
           )}
-        </div>
+        </BottomBar>
       </Page>
 
       {open?.type === "cell" && (
@@ -147,6 +181,18 @@ export function VerifyScreen() {
           c={open.c}
           onClose={() => setOpen(null)}
           onJump={(r, c) => setOpen({ type: "cell", r, c })}
+          onShowPhoto={photoCopy ? () => setOpen({ type: "photo", back: { r: open.r, c: open.c } }) : undefined}
+        />
+      )}
+      {open?.type === "photo" && (
+        <PhotoSheet
+          src={photoCopy}
+          look={
+            open.back && session.model.rows[open.back.r] && session.model.columns[open.back.c]
+              ? { client: rowLabel(session.model.rows[open.back.r]), product: columnLabel(session.model.columns[open.back.c]) }
+              : null
+          }
+          onClose={() => setOpen(open.back ? { type: "cell", r: open.back.r, c: open.back.c } : null)}
         />
       )}
       {open?.type === "item" && (

@@ -14,8 +14,11 @@ export type ColumnReason =
 
 export type RowReason = "total" | "empty-name" | "star" | "no-quantity" | "manual";
 
-/** Problème détecté sur une valeur (affichée en orange à la vérification). */
-export type CellIssue = "text" | "decimal" | "negative" | "too-big";
+/**
+ * Problème détecté sur une valeur (affichée en orange à la vérification).
+ * « uncertain » : la valeur est une quantité valable, mais la lecture de la photo n'en était pas sûre (voir `isUnsure`).
+ */
+export type CellIssue = "text" | "decimal" | "negative" | "too-big" | "uncertain";
 
 export function hasStar(name: string): boolean {
   return name.includes("*");

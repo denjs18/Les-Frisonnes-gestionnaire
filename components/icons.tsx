@@ -100,6 +100,13 @@ export const UploadIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const CameraIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 8h3l1.6-2.5h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+    <circle cx="12" cy="13" r="3.6" />
+  </Icon>
+);
+
 export const SlidersIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M4 7h8M18 7h2M4 17h2M12 17h8" />

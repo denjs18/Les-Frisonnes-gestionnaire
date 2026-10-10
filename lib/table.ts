@@ -18,12 +18,14 @@ export interface CellView {
   issue: CellIssue | null;
 }
 
+/** `unsure` : la lecture de la photo n'est pas sûre pour cette case et personne ne l'a encore confirmée ni corrigée (voir `isUnsure`). */
 export function cellView(
   value: CellValue,
   analysis: Analysis,
   r: number,
   c: number,
   confirmed: boolean,
+  unsure = false,
 ): CellView {
   const text = displayValue(value);
   if (!analysis.rows[r].active || !analysis.columns[c].active) {
@@ -34,5 +36,6 @@ export function cellView(
     const keep = confirmed && (issue === "decimal" || issue === "too-big");
     return { text, tone: keep ? "kept" : "warn", issue };
   }
+  if (unsure) return { text, tone: "warn", issue: "uncertain" };
   return { text, tone: empty ? "empty" : "ok", issue: null };
 }
